@@ -83,6 +83,31 @@ async function main(): Promise<void> {
   });
 
   console.log(`✅ Usuário admin criado/verificado: ${adminEmail}`);
+
+  // Contas de demonstração
+  const demoHash = await bcrypt.hash('123456', 12);
+  const demoAccounts = [
+    { email: 'admin@demo.com', role: 'admin' as const, username: 'Admin Demo' },
+    { email: 'supervisor@demo.com', role: 'supervisor' as const, username: 'Supervisor Demo' },
+    { email: 'cliente@demo.com', role: 'client' as const, username: 'Cliente Demo' },
+  ];
+
+  for (const acc of demoAccounts) {
+    await prisma.user.upsert({
+      where: { email: acc.email },
+      update: {},
+      create: {
+        email: acc.email,
+        passwordHash: demoHash,
+        role: acc.role,
+        profile: {
+          create: { username: acc.username },
+        },
+      },
+    });
+    console.log(`✅ Conta demo criada/verificada: ${acc.email}`);
+  }
+
   console.log('✅ Seed concluído!');
 }
 
