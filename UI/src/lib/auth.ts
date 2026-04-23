@@ -1,21 +1,34 @@
-import { getCurrentUser, logout as storageLogout } from "@/lib/storage";
-import type { UserRole } from "@/types";
+import Cookies from "js-cookie";
+import type { AuthUser } from "@/contexts/AuthContext";
 
-export { getCurrentUser, logout } from "@/lib/storage";
+const COOKIE_OPTIONS = { secure: true, sameSite: "lax" as const };
 
-export function isAuthenticated(): boolean {
-  return getCurrentUser() !== null;
+export function saveTokens(accessToken: string, refreshToken: string, user: AuthUser) {
+  Cookies.set("access_token", accessToken, COOKIE_OPTIONS);
+  Cookies.set("refresh_token", refreshToken, COOKIE_OPTIONS);
+  Cookies.set("user", encodeURIComponent(JSON.stringify(user)), COOKIE_OPTIONS);
 }
 
-export function hasRole(role: UserRole): boolean {
-  const user = getCurrentUser();
-  return user?.role === role;
+export function clearTokens() {
+  Cookies.remove("access_token");
+  Cookies.remove("refresh_token");
+  Cookies.remove("user");
 }
 
-export function requireAuth(navigate: (path: string) => void) {
-  if (!isAuthenticated()) {
-    navigate("/login");
-    return false;
+export function getAccessToken(): string | undefined {
+  return Cookies.get("access_token");
+}
+
+export function getRefreshToken(): string | undefined {
+  return Cookies.get("refresh_token");
+}
+
+export function getUser(): AuthUser | null {
+  const userCookie = Cookies.get("user");
+  if (!userCookie) return null;
+  try {
+    return JSON.parse(decodeURIComponent(userCookie)) as AuthUser;
+  } catch {
+    return null;
   }
-  return true;
 }

@@ -79,7 +79,7 @@ export class AuthService {
       throw new NotFoundException('Plano não encontrado.');
     }
 
-    const rounds = this.configService.get<number>('BCRYPT_ROUNDS') ?? 12;
+    const rounds = parseInt(this.configService.get<string>('BCRYPT_ROUNDS') ?? '12', 10);
     const passwordHash = await bcrypt.hash(dto.password, rounds);
 
     const totalAssetsValue = dto.assets.reduce(
@@ -209,7 +209,7 @@ export class AuthService {
       throw new BadRequestException('Token inválido.');
     }
 
-    const rounds = this.configService.get<number>('BCRYPT_ROUNDS') ?? 12;
+    const rounds = parseInt(this.configService.get<string>('BCRYPT_ROUNDS') ?? '12', 10);
     const passwordHash = await bcrypt.hash(dto.password, rounds);
 
     await this.prisma.$transaction([
