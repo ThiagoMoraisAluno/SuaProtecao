@@ -1,364 +1,172 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { ClientStatus } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientStatusDto } from './dto/update-client-status.dto';
 import { AddClientAssetDto } from './dto/add-client-asset.dto';
 import { UpdateClientPlanDto } from './dto/update-client-plan.dto';
+import {
+  ClientResponseDto,
+  ClientListItemDto,
+} from './dto/client-response.dto';
+import {
+  IClientsRepository,
+  CLIENTS_REPOSITORY_TOKEN,
+} from './interfaces/clients-repository.interface';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 @Injectable()
 export class ClientsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(CLIENTS_REPOSITORY_TOKEN)
+    private readonly clientsRepository: IClientsRepository,
     private readonly configService: ConfigService,
   ) {}
 
-  async create(dto: CreateClientDto, requester: JwtPayload) {
-    const existingEmail = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-    if (existingEmail) {
+  async create(
+    dto: CreateClientDto,
+    requester: JwtPayload,
+  ): Promise<ClientResponseDto> {
+    if (await this.clientsRepository.existsByEmail(dto.email)) {
       throw new ConflictException('E-mail já cadastrado.');
     }
-
-    const existingCpf = await this.prisma.client.findUnique({
-      where: { cpf: dto.cpf },
-    });
-    if (existingCpf) {
+    if (await this.clientsRepository.existsByCpf(dto.cpf)) {
       throw new ConflictException('CPF já cadastrado.');
     }
-
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan) {
+    if (!(await this.clientsRepository.existsPlan(dto.planId))) {
       throw new NotFoundException('Plano não encontrado.');
     }
 
-    // Supervisor creating client — assign to themselves if no supervisorId provided
     let supervisorId = dto.supervisorId;
     if (requester.role === 'supervisor' && !supervisorId) {
       supervisorId = requester.sub;
     }
 
-    if (supervisorId) {
-      const supervisor = await this.prisma.supervisor.findUnique({
-        where: { id: supervisorId },
-      });
-      if (!supervisor) {
-        throw new NotFoundException('Supervisor não encontrado.');
-      }
+    if (supervisorId && !(await this.clientsRepository.existsSupervisor(supervisorId))) {
+      throw new NotFoundException('Supervisor não encontrado.');
     }
 
-    const rounds = this.configService.get<number>('BCRYPT_ROUNDS') ?? 12;
+    const rounds = parseInt(
+      this.configService.get<string>('BCRYPT_ROUNDS') ?? '12',
+      10,
+    );
     const passwordHash = await bcrypt.hash(dto.password, rounds);
-
     const totalAssetsValue = dto.assets.reduce(
       (sum, asset) => sum + asset.estimatedValue,
       0,
     );
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          email: dto.email,
-          passwordHash,
-          role: 'client',
-          profile: {
-            create: {
-              username: dto.name,
-              phone: dto.phone,
-            },
-          },
-          client: {
-            create: {
-              cpf: dto.cpf,
-              phone: dto.phone,
-              planId: dto.planId,
-              supervisorId,
-              totalAssetsValue,
-              addressStreet: dto.addressStreet,
-              addressNumber: dto.addressNumber,
-              addressComplement: dto.addressComplement,
-              addressNeighborhood: dto.addressNeighborhood,
-              addressCity: dto.addressCity,
-              addressState: dto.addressState,
-              addressZipCode: dto.addressZipCode,
-              assets: {
-                create: dto.assets.map((a) => ({
-                  name: a.name,
-                  estimatedValue: a.estimatedValue,
-                })),
-              },
-            },
-          },
-        },
-        include: { profile: true, client: { include: { assets: true, plan: true } } },
-      });
-      return newUser;
+    const userId = await this.clientsRepository.create({
+      dto,
+      passwordHash,
+      totalAssetsValue,
+      supervisorId,
     });
 
-    return this.formatClientResponse(user.id);
+    const client = await this.clientsRepository.findByUserId(userId);
+    return client!;
   }
 
-  async findAll(requester: JwtPayload) {
-    const where =
-      requester.role === 'supervisor' ? { supervisorId: requester.sub } : {};
-
-    const clients = await this.prisma.client.findMany({
-      where,
-      include: {
-        user: { include: { profile: true } },
-        plan: true,
-        assets: true,
-      },
-      orderBy: { joinedAt: 'desc' },
-    });
-
-    return clients.map((c) => this.mapClientListItem(c));
+  async findAll(requester: JwtPayload): Promise<ClientListItemDto[]> {
+    const supervisorId =
+      requester.role === 'supervisor' ? requester.sub : undefined;
+    return this.clientsRepository.findAll(supervisorId);
   }
 
-  async findBysupervisor(supervisorId: string, requester: JwtPayload) {
+  async findBysupervisor(
+    supervisorId: string,
+    requester: JwtPayload,
+  ): Promise<ClientListItemDto[]> {
     if (requester.role === 'supervisor' && requester.sub !== supervisorId) {
       throw new ForbiddenException('Acesso negado.');
     }
-
-    const clients = await this.prisma.client.findMany({
-      where: { supervisorId },
-      include: {
-        user: { include: { profile: true } },
-        plan: true,
-        assets: true,
-      },
-      orderBy: { joinedAt: 'desc' },
-    });
-
-    return clients.map((c) => this.mapClientListItem(c));
+    return this.clientsRepository.findAll(supervisorId);
   }
 
-  async findMyData(userId: string) {
-    return this.formatClientResponse(userId);
+  async findMyData(userId: string): Promise<ClientResponseDto> {
+    const client = await this.clientsRepository.findByUserId(userId);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+    return client;
   }
 
-  async findOne(id: string, requester: JwtPayload) {
-    const client = await this.prisma.client.findUnique({
-      where: { id },
-      select: { id: true, supervisorId: true },
-    });
+  async findOne(id: string, requester: JwtPayload): Promise<ClientResponseDto> {
+    const client = await this.clientsRepository.findById(id);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
 
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado.');
-    }
-
-    // Access control: client can only see themselves; supervisor only their clients
     if (requester.role === 'client' && requester.sub !== id) {
       throw new ForbiddenException('Acesso negado.');
     }
 
-    if (
-      requester.role === 'supervisor' &&
-      client.supervisorId !== requester.sub
-    ) {
-      throw new ForbiddenException('Acesso negado.');
+    if (requester.role === 'supervisor') {
+      const supervisorId = await this.clientsRepository.findSupervisorId(id);
+      if (supervisorId !== requester.sub) {
+        throw new ForbiddenException('Acesso negado.');
+      }
     }
 
-    return this.formatClientResponse(id);
+    return client;
   }
 
-  async updateStatus(id: string, dto: UpdateClientStatusDto) {
-    const client = await this.prisma.client.findUnique({ where: { id } });
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado.');
-    }
-
-    await this.prisma.client.update({
-      where: { id },
-      data: { status: dto.status },
-    });
-
-    return this.formatClientResponse(id);
+  async updateStatus(
+    id: string,
+    dto: UpdateClientStatusDto,
+  ): Promise<ClientResponseDto> {
+    const client = await this.clientsRepository.findById(id);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+    await this.clientsRepository.updateStatus(id, dto.status);
+    return (await this.clientsRepository.findById(id))!;
   }
 
-  async addAsset(clientId: string, dto: AddClientAssetDto) {
-    const client = await this.prisma.client.findUnique({
-      where: { id: clientId },
-    });
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado.');
-    }
-
-    await this.prisma.clientAsset.create({
-      data: {
-        clientId,
-        name: dto.name,
-        estimatedValue: dto.estimatedValue,
-      },
-    });
-
-    // Recalculate totalAssetsValue
-    const assets = await this.prisma.clientAsset.findMany({
-      where: { clientId },
-    });
-    const totalAssetsValue = assets.reduce(
-      (sum, a) => sum + Number(a.estimatedValue),
-      0,
-    );
-    await this.prisma.client.update({
-      where: { id: clientId },
-      data: { totalAssetsValue },
-    });
-
-    return this.formatClientResponse(clientId);
+  async addAsset(
+    clientId: string,
+    dto: AddClientAssetDto,
+  ): Promise<ClientResponseDto> {
+    const client = await this.clientsRepository.findById(clientId);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+    await this.clientsRepository.addAsset(clientId, dto);
+    await this.clientsRepository.recalculateAssetsValue(clientId);
+    return (await this.clientsRepository.findById(clientId))!;
   }
 
-  async removeAsset(clientId: string, assetId: string) {
-    const asset = await this.prisma.clientAsset.findFirst({
-      where: { id: assetId, clientId },
-    });
-    if (!asset) {
-      throw new NotFoundException('Bem não encontrado.');
-    }
-
-    await this.prisma.clientAsset.delete({ where: { id: assetId } });
-
-    // Recalculate totalAssetsValue
-    const assets = await this.prisma.clientAsset.findMany({
-      where: { clientId },
-    });
-    const totalAssetsValue = assets.reduce(
-      (sum, a) => sum + Number(a.estimatedValue),
-      0,
-    );
-    await this.prisma.client.update({
-      where: { id: clientId },
-      data: { totalAssetsValue },
-    });
-
+  async removeAsset(
+    clientId: string,
+    assetId: string,
+  ): Promise<{ message: string }> {
+    const found = await this.clientsRepository.removeAsset(clientId, assetId);
+    if (!found) throw new NotFoundException('Bem não encontrado.');
+    await this.clientsRepository.recalculateAssetsValue(clientId);
     return { message: 'Bem removido com sucesso.' };
   }
 
-  async updatePlan(clientId: string, dto: UpdateClientPlanDto) {
-    const client = await this.prisma.client.findUnique({
-      where: { id: clientId },
-    });
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado.');
-    }
-
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan) {
+  async updatePlan(
+    clientId: string,
+    dto: UpdateClientPlanDto,
+  ): Promise<ClientResponseDto> {
+    const client = await this.clientsRepository.findById(clientId);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+    if (!(await this.clientsRepository.existsPlan(dto.planId))) {
       throw new NotFoundException('Plano não encontrado.');
     }
-
-    await this.prisma.client.update({
-      where: { id: clientId },
-      data: {
-        planId: dto.planId,
-        ...(dto.supervisorId !== undefined && { supervisorId: dto.supervisorId }),
-      },
-    });
-
-    return this.formatClientResponse(clientId);
+    await this.clientsRepository.updatePlan(
+      clientId,
+      dto.planId,
+      dto.supervisorId,
+    );
+    return (await this.clientsRepository.findById(clientId))!;
   }
 
-  async incrementServicesUsed(clientId: string) {
-    const client = await this.prisma.client.findUnique({
-      where: { id: clientId },
-    });
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado.');
-    }
-
-    return this.prisma.client.update({
-      where: { id: clientId },
-      data: { servicesUsedThisMonth: { increment: 1 } },
-    });
-  }
-
-  private async formatClientResponse(clientId: string) {
-    const client = await this.prisma.client.findUnique({
-      where: { id: clientId },
-      include: {
-        user: { include: { profile: true } },
-        plan: true,
-        assets: true,
-      },
-    });
-
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado.');
-    }
-
-    return {
-      id: client.id,
-      name: client.user.profile?.username ?? '',
-      email: client.user.email,
-      role: client.user.role,
-      cpf: client.cpf,
-      phone: client.phone,
-      planId: client.planId,
-      supervisorId: client.supervisorId,
-      status: client.status,
-      totalAssetsValue: Number(client.totalAssetsValue),
-      servicesUsedThisMonth: client.servicesUsedThisMonth,
-      joinedAt: client.joinedAt,
-      lastPaymentAt: client.lastPaymentAt,
-      address: {
-        street: client.addressStreet,
-        number: client.addressNumber,
-        complement: client.addressComplement,
-        neighborhood: client.addressNeighborhood,
-        city: client.addressCity,
-        state: client.addressState,
-        zipCode: client.addressZipCode,
-      },
-      assets: client.assets.map((a) => ({
-        id: a.id,
-        name: a.name,
-        estimatedValue: Number(a.estimatedValue),
-      })),
-      createdAt: client.createdAt,
-    };
-  }
-
-  private mapClientListItem(client: {
-    id: string;
-    cpf: string;
-    phone: string | null;
-    planId: string;
-    supervisorId: string | null;
-    status: ClientStatus;
-    totalAssetsValue: { toString(): string };
-    servicesUsedThisMonth: number;
-    joinedAt: Date;
-    createdAt: Date;
-    user: {
-      email: string;
-      profile: { username: string; phone: string | null } | null;
-    };
-    plan: { name: string };
-    assets: { id: string; name: string; estimatedValue: { toString(): string } }[];
-  }) {
-    return {
-      id: client.id,
-      name: client.user.profile?.username ?? '',
-      email: client.user.email,
-      cpf: client.cpf,
-      phone: client.phone,
-      status: client.status,
-      planId: client.planId,
-      planName: client.plan.name,
-      supervisorId: client.supervisorId,
-      totalAssetsValue: Number(client.totalAssetsValue),
-      servicesUsedThisMonth: client.servicesUsedThisMonth,
-      joinedAt: client.joinedAt,
-      createdAt: client.createdAt,
-    };
+  async incrementServicesUsed(
+    clientId: string,
+  ): Promise<{ message: string }> {
+    const client = await this.clientsRepository.findById(clientId);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+    await this.clientsRepository.incrementServicesUsed(clientId);
+    return { message: 'Serviço incrementado.' };
   }
 }

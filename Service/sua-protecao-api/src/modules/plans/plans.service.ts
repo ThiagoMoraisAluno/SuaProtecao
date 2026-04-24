@@ -1,76 +1,31 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdatePlanDto } from './dto/update-plan.dto';
+import { PlanResponseDto } from './dto/plan-response.dto';
+import {
+  IPlansRepository,
+  PLANS_REPOSITORY_TOKEN,
+} from './interfaces/plans-repository.interface';
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PLANS_REPOSITORY_TOKEN)
+    private readonly plansRepository: IPlansRepository,
+  ) {}
 
-  async findAll() {
-    const plans = await this.prisma.plan.findMany({
-      orderBy: { price: 'asc' },
-    });
-
-    return plans.map((p) => this.mapPlan(p));
+  async findAll(): Promise<PlanResponseDto[]> {
+    return this.plansRepository.findAll();
   }
 
-  async findOne(id: string) {
-    const plan = await this.prisma.plan.findUnique({ where: { id } });
-    if (!plan) {
-      throw new NotFoundException('Plano não encontrado.');
-    }
-    return this.mapPlan(plan);
+  async findOne(id: string): Promise<PlanResponseDto> {
+    const plan = await this.plansRepository.findById(id);
+    if (!plan) throw new NotFoundException('Plano não encontrado.');
+    return plan;
   }
 
-  async update(id: string, dto: UpdatePlanDto) {
-    const plan = await this.prisma.plan.findUnique({ where: { id } });
-    if (!plan) {
-      throw new NotFoundException('Plano não encontrado.');
-    }
-
-    const updated = await this.prisma.plan.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.price !== undefined && { price: dto.price }),
-        ...(dto.servicesPerMonth !== undefined && {
-          servicesPerMonth: dto.servicesPerMonth,
-        }),
-        ...(dto.coverageLimit !== undefined && {
-          coverageLimit: dto.coverageLimit,
-        }),
-        ...(dto.features !== undefined && { features: dto.features }),
-      },
-    });
-
-    return this.mapPlan(updated);
-  }
-
-  private mapPlan(plan: {
-    id: string;
-    type: string;
-    name: string;
-    price: { toString(): string };
-    servicesPerMonth: number;
-    coverageLimit: { toString(): string };
-    features: string[];
-    color: string;
-    popular: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }) {
-    return {
-      id: plan.id,
-      type: plan.type,
-      name: plan.name,
-      price: Number(plan.price),
-      servicesPerMonth: plan.servicesPerMonth,
-      coverageLimit: Number(plan.coverageLimit),
-      features: plan.features,
-      color: plan.color,
-      popular: plan.popular,
-      createdAt: plan.createdAt,
-      updatedAt: plan.updatedAt,
-    };
+  async update(id: string, dto: UpdatePlanDto): Promise<PlanResponseDto> {
+    const plan = await this.plansRepository.findById(id);
+    if (!plan) throw new NotFoundException('Plano não encontrado.');
+    return this.plansRepository.update(id, dto);
   }
 }
