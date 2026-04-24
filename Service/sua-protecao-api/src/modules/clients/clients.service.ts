@@ -44,7 +44,8 @@ export class ClientsService {
     }
 
     let supervisorId = dto.supervisorId;
-    if (requester.role === 'supervisor' && !supervisorId) {
+    if (requester.role === 'supervisor') {
+      // Supervisor só pode criar clientes vinculados a si mesmo
       supervisorId = requester.sub;
     }
 
@@ -126,9 +127,13 @@ export class ClientsService {
   async addAsset(
     clientId: string,
     dto: AddClientAssetDto,
+    requester: JwtPayload,
   ): Promise<ClientResponseDto> {
     const client = await this.clientsRepository.findById(clientId);
     if (!client) throw new NotFoundException('Cliente não encontrado.');
+    if (requester.role === 'supervisor') {
+      await this.assertSupervisorOwnsClient(clientId, requester.sub);
+    }
     await this.clientsRepository.addAsset(clientId, dto);
     await this.clientsRepository.recalculateAssetsValue(clientId);
     return (await this.clientsRepository.findById(clientId))!;
@@ -137,7 +142,13 @@ export class ClientsService {
   async removeAsset(
     clientId: string,
     assetId: string,
+    requester: JwtPayload,
   ): Promise<{ message: string }> {
+    const client = await this.clientsRepository.findById(clientId);
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+    if (requester.role === 'supervisor') {
+      await this.assertSupervisorOwnsClient(clientId, requester.sub);
+    }
     const found = await this.clientsRepository.removeAsset(clientId, assetId);
     if (!found) throw new NotFoundException('Bem não encontrado.');
     await this.clientsRepository.recalculateAssetsValue(clientId);
@@ -147,11 +158,18 @@ export class ClientsService {
   async updatePlan(
     clientId: string,
     dto: UpdateClientPlanDto,
+    requester: JwtPayload,
   ): Promise<ClientResponseDto> {
     const client = await this.clientsRepository.findById(clientId);
     if (!client) throw new NotFoundException('Cliente não encontrado.');
     if (!(await this.clientsRepository.existsPlan(dto.planId))) {
       throw new NotFoundException('Plano não encontrado.');
+    }
+    if (requester.role === 'supervisor') {
+      await this.assertSupervisorOwnsClient(clientId, requester.sub);
+      if (dto.supervisorId !== undefined && dto.supervisorId !== requester.sub) {
+        throw new ForbiddenException('Acesso negado.');
+      }
     }
     await this.clientsRepository.updatePlan(
       clientId,
@@ -159,6 +177,14 @@ export class ClientsService {
       dto.supervisorId,
     );
     return (await this.clientsRepository.findById(clientId))!;
+  }
+
+  private async assertSupervisorOwnsClient(
+    clientId: string,
+    supervisorId: string,
+  ): Promise<void> {
+    const owner = await this.clientsRepository.findSupervisorId(clientId);
+    if (owner !== supervisorId) throw new ForbiddenException('Acesso negado.');
   }
 
   async incrementServicesUsed(

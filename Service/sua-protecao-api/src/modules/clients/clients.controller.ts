@@ -78,15 +78,23 @@ export class ClientsController {
   @Post(':id/assets')
   @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Adiciona bem ao imóvel do cliente' })
-  addAsset(@Param('id') id: string, @Body() dto: AddClientAssetDto) {
-    return this.clientsService.addAsset(id, dto);
+  addAsset(
+    @Param('id') id: string,
+    @Body() dto: AddClientAssetDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.clientsService.addAsset(id, dto, user);
   }
 
   @Delete(':id/assets/:assetId')
   @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Remove bem do imóvel do cliente' })
-  removeAsset(@Param('id') id: string, @Param('assetId') assetId: string) {
-    return this.clientsService.removeAsset(id, assetId);
+  removeAsset(
+    @Param('id') id: string,
+    @Param('assetId') assetId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.clientsService.removeAsset(id, assetId, user);
   }
 
   @Patch(':id/plan')
@@ -95,8 +103,9 @@ export class ClientsController {
   updatePlan(
     @Param('id') id: string,
     @Body() dto: UpdateClientPlanDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.clientsService.updatePlan(id, dto);
+    return this.clientsService.updatePlan(id, dto, user);
   }
 
   @Post(':id/increment-services')
