@@ -55,13 +55,6 @@ export class AuthController {
     return result;
   }
 
-  @Post('sigin-in')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login com e-mail e senha (endpoint alternativo)' })
-  signIn(@Body() dto: SessionRequest) {
-    return this.sessionService.execute(dto);
-  }
-
   @Post('register')
   @ApiOperation({ summary: 'Registro de novo cliente (self-service)' })
   async register(
