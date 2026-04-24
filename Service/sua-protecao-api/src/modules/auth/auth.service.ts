@@ -6,7 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { BCRYPT_ROUNDS } from '../../common/constants/security.constants';
+import {
+  BCRYPT_ROUNDS,
+  TIMING_SAFE_DUMMY_HASH,
+} from '../../common/constants/security.constants';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthResponseDto, AuthTokensDto, AuthUserDto } from './dto/auth-response.dto';
@@ -39,7 +42,11 @@ export class AuthService {
   async login(dto: LoginDto): Promise<AuthResponseDto> {
     // P1: busca sem profile — valida senha antes do join
     const user = await this.authRepository.findUserByEmail(dto.email);
-    if (!user) throw new UnauthorizedException('Credenciais inválidas.');
+    if (!user) {
+      // Equaliza o tempo de resposta para prevenir enumeração de usuários por timing
+      await bcrypt.compare(dto.password, TIMING_SAFE_DUMMY_HASH);
+      throw new UnauthorizedException('Credenciais inválidas.');
+    }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) throw new UnauthorizedException('Credenciais inválidas.');

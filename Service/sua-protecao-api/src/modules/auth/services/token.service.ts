@@ -25,6 +25,7 @@ export class TokenService implements ITokenService {
     return this.jwtService.sign(payload, {
       secret: this.jwtSecret,
       expiresIn: this.jwtExpiresIn,
+      algorithm: 'HS256',
     });
   }
 

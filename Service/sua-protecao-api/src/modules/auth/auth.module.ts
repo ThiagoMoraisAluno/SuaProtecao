@@ -28,6 +28,7 @@ import { PASSWORD_RESET_SERVICE_TOKEN } from './interfaces/password-reset-servic
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
           expiresIn: configService.get<string>('JWT_EXPIRES_IN') ?? '15m',
+          algorithm: 'HS256',
         },
       }),
     }),

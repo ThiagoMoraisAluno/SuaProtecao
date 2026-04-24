@@ -71,6 +71,8 @@ export class PasswordResetService implements IPasswordResetService {
 
     await this.authRepository.markPasswordResetTokenUsed(record.id);
     await this.authRepository.updatePassword(record.userId, passwordHash);
+    // Revoga todas as sessões ativas — token comprometido não concede mais acesso
+    await this.authRepository.deleteAllRefreshTokens(record.userId);
 
     return { message: 'Senha redefinida com sucesso.' };
   }

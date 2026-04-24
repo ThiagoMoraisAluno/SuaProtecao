@@ -26,7 +26,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Cookie } from '../../common/decorators/cookie.decorator';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
-import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
+import {
+  AuthPublicResponseDto,
+  AuthPublicTokenDto,
+} from './dto/auth-response.dto';
 
 const ACCESS_TOKEN_COOKIE = 'access_token';
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
@@ -49,25 +52,27 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthResponseDto> {
-    const result = await this.authService.login(dto);
-    this.setAuthCookies(res, result.accessToken, result.refreshToken);
-    return result;
+  ): Promise<AuthPublicResponseDto> {
+    const { refreshToken, ...publicResult } = await this.authService.login(dto);
+    this.setAuthCookies(res, publicResult.accessToken, refreshToken);
+    return publicResult;
   }
 
   @Post('register')
+  @Throttle({ strict: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Registro de novo cliente (self-service)' })
   async register(
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthResponseDto> {
-    const result = await this.authService.register(dto);
-    this.setAuthCookies(res, result.accessToken, result.refreshToken);
-    return result;
+  ): Promise<AuthPublicResponseDto> {
+    const { refreshToken, ...publicResult } = await this.authService.register(dto);
+    this.setAuthCookies(res, publicResult.accessToken, refreshToken);
+    return publicResult;
   }
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ strict: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Solicita redefinição de senha' })
   forgotPassword(
     @Body() dto: ForgotPasswordDto,
@@ -77,6 +82,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ strict: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Redefine senha via token (invalida o token após uso)' })
   resetPassword(
     @Body() dto: ResetPasswordDto,
@@ -90,13 +96,14 @@ export class AuthController {
   async refresh(
     @Cookie(REFRESH_TOKEN_COOKIE) refreshToken: string | undefined,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthTokensDto> {
+  ): Promise<AuthPublicTokenDto> {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token não encontrado.');
     }
-    const tokens = await this.authService.refresh(refreshToken);
-    this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
-    return tokens;
+    const { accessToken, refreshToken: newRefreshToken } =
+      await this.authService.refresh(refreshToken);
+    this.setAuthCookies(res, accessToken, newRefreshToken);
+    return { accessToken };
   }
 
   @Post('logout')
