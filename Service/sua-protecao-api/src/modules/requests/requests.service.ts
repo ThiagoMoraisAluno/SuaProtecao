@@ -62,25 +62,25 @@ export class RequestsService {
         throw new BadRequestException('A data desejada não pode ser no passado.');
       }
 
-      const { servicesPerMonth } = client.plan;
-      if (
-        servicesPerMonth !== -1 &&
-        client.servicesUsedThisMonth >= servicesPerMonth
-      ) {
-        throw new ForbiddenException(
-          'Limite de serviços do mês atingido para o plano contratado.',
-        );
-      }
-
+      // Verificação final de limite é feita atomicamente dentro da transação
       return this.requestsRepository.createServiceRequest(
         dto,
         client.id,
         clientName,
+        client.plan.servicesPerMonth,
+      );
+    }
+
+    const coverageDto = dto as CreateCoverageRequestDto;
+    const coverageLimit = client.plan.coverageLimit.toNumber();
+    if (coverageDto.estimatedLoss > coverageLimit) {
+      throw new BadRequestException(
+        `Valor estimado excede o limite de cobertura do plano (R$ ${coverageLimit.toFixed(2)}).`,
       );
     }
 
     return this.requestsRepository.createCoverageRequest(
-      dto as CreateCoverageRequestDto,
+      coverageDto,
       client.id,
       clientName,
     );

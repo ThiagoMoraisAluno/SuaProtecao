@@ -8,7 +8,7 @@ export interface ClientForRequest {
   id: string;
   status: ClientStatus;
   servicesUsedThisMonth: number;
-  plan: { servicesPerMonth: number };
+  plan: { servicesPerMonth: number; coverageLimit: { toNumber(): number } };
   user: { profile: { username: string } | null };
 }
 
@@ -25,6 +25,7 @@ export interface IRequestsRepository {
     dto: CreateServiceRequestDto,
     clientId: string,
     clientName: string,
+    servicesPerMonth: number,
   ): Promise<RequestResponseDto>;
   createCoverageRequest(
     dto: CreateCoverageRequestDto,

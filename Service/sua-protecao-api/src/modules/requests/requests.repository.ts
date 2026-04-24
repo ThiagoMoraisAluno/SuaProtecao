@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { RequestStatus, RequestType } from '@prisma/client';
+import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Prisma, RequestStatus, RequestType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   IRequestsRepository,
@@ -18,7 +18,10 @@ export class RequestsRepository implements IRequestsRepository {
   async findClientForRequest(clientId: string): Promise<ClientForRequest | null> {
     return this.prisma.client.findUnique({
       where: { id: clientId },
-      include: { plan: true, user: { include: { profile: true } } },
+      include: {
+        plan: { select: { servicesPerMonth: true, coverageLimit: true } },
+        user: { include: { profile: true } },
+      },
     });
   }
 
@@ -26,26 +29,54 @@ export class RequestsRepository implements IRequestsRepository {
     dto: CreateServiceRequestDto,
     clientId: string,
     clientName: string,
+    servicesPerMonth: number,
   ): Promise<RequestResponseDto> {
-    const request = await this.prisma.$transaction(async (tx) => {
-      const newRequest = await tx.request.create({
-        data: {
-          clientId,
-          clientName,
-          type: RequestType.service,
-          description: dto.description,
-          status: RequestStatus.pending,
-          serviceType: dto.serviceType,
-          desiredDate: new Date(dto.desiredDate),
+    try {
+      const request = await this.prisma.$transaction(
+        async (tx) => {
+          // Re-leitura dentro da transação — SSI detecta conflito se outro TX já incrementou
+          const fresh = await tx.client.findUnique({
+            where: { id: clientId },
+            select: { servicesUsedThisMonth: true },
+          });
+          if (
+            servicesPerMonth !== -1 &&
+            fresh!.servicesUsedThisMonth >= servicesPerMonth
+          ) {
+            throw new ForbiddenException(
+              'Limite de serviços do mês atingido para o plano contratado.',
+            );
+          }
+          const newRequest = await tx.request.create({
+            data: {
+              clientId,
+              clientName,
+              type: RequestType.service,
+              description: dto.description,
+              status: RequestStatus.pending,
+              serviceType: dto.serviceType,
+              desiredDate: new Date(dto.desiredDate),
+            },
+          });
+          await tx.client.update({
+            where: { id: clientId },
+            data: { servicesUsedThisMonth: { increment: 1 } },
+          });
+          return newRequest;
         },
-      });
-      await tx.client.update({
-        where: { id: clientId },
-        data: { servicesUsedThisMonth: { increment: 1 } },
-      });
-      return newRequest;
-    });
-    return this.mapRequest(request);
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+      return this.mapRequest(request);
+    } catch (error) {
+      // P2034 = serialization failure — transação concorrente ganhou a corrida
+      const e = error as { code?: string };
+      if (e.code === 'P2034') {
+        throw new ForbiddenException(
+          'Limite de serviços do mês atingido para o plano contratado.',
+        );
+      }
+      throw error;
+    }
   }
 
   async createCoverageRequest(
