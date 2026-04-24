@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   Min,
   MinLength,
   ValidateNested,
@@ -22,6 +23,10 @@ export class ClientAssetDto {
   @Min(0)
   estimatedValue!: number;
 }
+
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])/;
+const PASSWORD_MESSAGE =
+  'Senha deve conter maiúscula, minúscula, número e símbolo (@$!%*?&#)';
 
 export class RegisterDto {
   @ApiProperty()
@@ -42,9 +47,10 @@ export class RegisterDto {
   @IsString()
   phone?: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 8 })
   @IsString()
-  @MinLength(6)
+  @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
+  @Matches(PASSWORD_PATTERN, { message: PASSWORD_MESSAGE })
   password!: string;
 
   @ApiProperty()

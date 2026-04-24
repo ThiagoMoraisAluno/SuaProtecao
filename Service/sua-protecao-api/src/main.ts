@@ -1,14 +1,45 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
+import cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
+const REQUIRED_ENV_VARS = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'PASSWORD_RESET_SECRET',
+  'PORT',
+];
+
+function validateEnv(): void {
+  const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Variáveis de ambiente obrigatórias não configuradas: ${missing.join(', ')}`,
+    );
+  }
+}
+
 async function bootstrap(): Promise<void> {
+  validateEnv();
+
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors({ origin: process.env.CORS_ORIGIN ?? '*' });
+  // Segurança: headers HTTP via Helmet
+  app.use(helmet());
+
+  // Cookie parser para suporte a httpOnly cookies
+  app.use(cookieParser());
+
+  // CORS restritivo — apenas origem configurada
+  app.enableCors({
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
