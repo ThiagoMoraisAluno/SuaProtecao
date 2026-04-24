@@ -21,17 +21,26 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { SessionService } from './session/SessionService';
+import { SessionRequest } from './session/SessionRequest';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService, private readonly sessionService: SessionService) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login com e-mail e senha' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('sigin-in')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login com e-mail e senha (endpoint alternativo)' })
+  signIn(@Body() dto: SessionRequest) {
+    return this.sessionService.execute(dto);
   }
 
   @Post('register')
