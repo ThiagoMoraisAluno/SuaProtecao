@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import cookieParser = require('cookie-parser');
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -26,7 +27,11 @@ function validateEnv(): void {
 async function bootstrap(): Promise<void> {
   validateEnv();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Limite explícito de 1 MB — previne ataques de payload gigante
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
 
   // Segurança: headers HTTP via Helmet
   app.use(helmet());
@@ -52,21 +57,24 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  const config = new DocumentBuilder()
-    .setTitle('Sua Proteção API')
-    .setDescription('API do sistema Sua Proteção | Reparo Certo')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup(
-    'api/docs',
-    app,
-    SwaggerModule.createDocument(app, config),
-  );
-
   const port = process.env.PORT ?? 3000;
+
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Sua Proteção API')
+      .setDescription('API do sistema Sua Proteção | Reparo Certo')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    SwaggerModule.setup(
+      'api/docs',
+      app,
+      SwaggerModule.createDocument(app, config),
+    );
+    console.log(`Docs: http://localhost:${port}/api/docs`);
+  }
+
   await app.listen(port);
   console.log(`API: http://localhost:${port}`);
-  console.log(`Docs: http://localhost:${port}/api/docs`);
 }
 bootstrap();

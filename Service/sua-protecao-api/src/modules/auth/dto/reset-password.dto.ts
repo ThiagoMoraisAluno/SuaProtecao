@@ -1,4 +1,4 @@
-import { IsString, Matches, MinLength } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])/;
@@ -10,9 +10,10 @@ export class ResetPasswordDto {
   @IsString()
   token!: string;
 
-  @ApiProperty({ minLength: 8 })
+  @ApiProperty({ minLength: 8, maxLength: 128 })
   @IsString()
   @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
+  @MaxLength(128, { message: 'Senha deve ter no máximo 128 caracteres' })
   @Matches(PASSWORD_PATTERN, { message: PASSWORD_MESSAGE })
   password!: string;
 }

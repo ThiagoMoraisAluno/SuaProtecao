@@ -6,6 +6,7 @@ import {
   IsString,
   Length,
   Matches,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -47,9 +48,10 @@ export class RegisterDto {
   @IsString()
   phone?: string;
 
-  @ApiProperty({ minLength: 8 })
+  @ApiProperty({ minLength: 8, maxLength: 128 })
   @IsString()
   @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
+  @MaxLength(128, { message: 'Senha deve ter no máximo 128 caracteres' })
   @Matches(PASSWORD_PATTERN, { message: PASSWORD_MESSAGE })
   password!: string;
 

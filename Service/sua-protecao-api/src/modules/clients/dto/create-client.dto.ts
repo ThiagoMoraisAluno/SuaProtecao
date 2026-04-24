@@ -6,6 +6,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -43,9 +44,10 @@ export class CreateClientDto {
   @IsString()
   phone?: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 6, maxLength: 128 })
   @IsString()
   @MinLength(6)
+  @MaxLength(128)
   password!: string;
 
   @ApiProperty()

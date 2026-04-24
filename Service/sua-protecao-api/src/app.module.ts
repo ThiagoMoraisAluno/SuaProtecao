@@ -15,18 +15,13 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
 
-    // H1: rate limiting global (100 req/min) + named "login" (5/min — aplicado no controller)
+    // H1: rate limiting global + throttlers nomeados aplicados nos controllers
     ThrottlerModule.forRoot([
-      {
-        name: 'global',
-        ttl: 60000,
-        limit: 100,
-      },
-      {
-        name: 'login',
-        ttl: 60000,
-        limit: 5,
-      },
+      { name: 'global', ttl: 60000, limit: 100 },
+      // login: 5 tentativas/min por IP
+      { name: 'login', ttl: 60000, limit: 5 },
+      // strict: 3 req/min por IP — registro e reset de senha
+      { name: 'strict', ttl: 60000, limit: 3 },
     ]),
 
     PrismaModule,
