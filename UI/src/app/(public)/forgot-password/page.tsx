@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Shield, Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { authService } from "@/services/auth.service";
 import { toast } from "sonner";
+import axios from "axios";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,8 +18,12 @@ export default function ForgotPasswordPage() {
     try {
       await authService.forgotPassword(email);
       setSent(true);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Erro ao enviar e-mail. Tente novamente.");
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "Erro ao enviar e-mail. Tente novamente.")
+          : "Erro ao enviar e-mail. Tente novamente."
+      );
     } finally {
       setLoading(false);
     }

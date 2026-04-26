@@ -3,9 +3,10 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Shield, Eye, EyeOff, Lock, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { authService } from "@/services/auth.service";
 import { toast } from "sonner";
+import axios from "axios";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -35,8 +36,12 @@ function ResetPasswordForm() {
       await authService.resetPassword(token, password);
       setDone(true);
       setTimeout(() => router.push("/login"), 3000);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Erro ao redefinir senha. Solicite um novo link.");
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "Erro ao redefinir senha. Solicite um novo link.")
+          : "Erro ao redefinir senha. Solicite um novo link."
+      );
     } finally {
       setLoading(false);
     }

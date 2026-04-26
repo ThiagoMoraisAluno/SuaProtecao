@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Shield, Eye, EyeOff, ArrowRight, Loader2, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import axios from "axios";
 
 const demoAccounts = [
   { role: "Admin Master", email: "admin@demo.com" },
@@ -28,8 +29,14 @@ export default function LoginPage() {
       if (user.role === "admin") router.push("/admin/dashboard");
       else if (user.role === "supervisor") router.push("/supervisor/dashboard");
       else router.push("/client/dashboard");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err.message || "E-mail ou senha incorretos.");
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "E-mail ou senha incorretos.")
+          : err instanceof Error
+            ? err.message
+            : "E-mail ou senha incorretos."
+      );
     }
   };
 

@@ -7,6 +7,7 @@ import { supervisorsService } from "@/services/supervisors.service";
 import { clientsService } from "@/services/clients.service";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
+import axios from "axios";
 
 export default function AdminSupervisorsPage() {
   const qc = useQueryClient();
@@ -39,8 +40,12 @@ export default function AdminSupervisorsPage() {
       setForm({ name: "", email: "", phone: "", commission: "10", password: "123456" });
       toast.success(`Supervisor ${form.name} cadastrado!`);
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Erro ao cadastrar supervisor.");
+    onError: (err: unknown) => {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "Erro ao cadastrar supervisor.")
+          : "Erro ao cadastrar supervisor."
+      );
     },
   });
 

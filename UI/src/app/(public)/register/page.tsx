@@ -9,6 +9,7 @@ import { authService } from "@/services/auth.service";
 import { formatCurrency } from "@/lib/utils";
 import { APPLIANCES_LIST, BRAZILIAN_STATES } from "@/constants";
 import { toast } from "sonner";
+import axios from "axios";
 import type { Plan } from "@/types";
 
 type Step = 1 | 2 | 3 | 4;
@@ -95,13 +96,15 @@ export default function RegisterPage() {
         assets,
       });
       setDone(true);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
+    } catch (err) {
+      const apiMsg = axios.isAxiosError<{ message: string | string[] }>(err)
+        ? err.response?.data?.message
+        : undefined;
       toast.error(
-        typeof msg === "string"
-          ? msg
-          : Array.isArray(msg)
-          ? msg[0]
+        typeof apiMsg === "string"
+          ? apiMsg
+          : Array.isArray(apiMsg)
+          ? apiMsg[0]
           : "Erro ao criar conta. Tente novamente."
       );
     } finally {

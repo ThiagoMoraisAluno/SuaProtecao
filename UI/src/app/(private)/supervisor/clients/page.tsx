@@ -11,6 +11,7 @@ import { plansService } from "@/services/plans.service";
 import { getClientStatusConfig, getPlanLabel, formatDate, formatCurrency } from "@/lib/utils";
 import { APPLIANCES_LIST, BRAZILIAN_STATES } from "@/constants";
 import { toast } from "sonner";
+import axios from "axios";
 import type { ClientAsset } from "@/types";
 
 interface FormState {
@@ -84,8 +85,12 @@ export default function SupervisorClientsPage() {
       setForm(defaultForm);
       toast.success(`Cliente ${form.name} cadastrado com sucesso!`);
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Erro ao cadastrar cliente.");
+    onError: (err: unknown) => {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "Erro ao cadastrar cliente.")
+          : "Erro ao cadastrar cliente."
+      );
     },
   });
 
