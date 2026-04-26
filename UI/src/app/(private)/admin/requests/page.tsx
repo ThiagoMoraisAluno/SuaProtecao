@@ -55,7 +55,7 @@ export default function AdminRequestsPage() {
     setSelectedRequest(req);
     setAdminNotes(req.adminNotes || "");
     setNewStatus(req.status);
-    setApprovedAmount(req.type === "coverage" && (req as any).approvedAmount ? String((req as any).approvedAmount) : "");
+    setApprovedAmount(req.type === "coverage" && req.approvedAmount ? String(req.approvedAmount) : "");
   };
 
   const handleUpdate = () => {
@@ -145,12 +145,12 @@ export default function AdminRequestsPage() {
                       <p className="text-sm font-semibold text-slate-900">{req.clientName}</p>
                       <span className="text-slate-300">·</span>
                       <p className="text-sm text-slate-500">
-                        {req.type === "service" ? getServiceTypeLabel((req as any).serviceType) : getCoverageTypeLabel((req as any).coverageType)}
+                        {req.type === "service" ? getServiceTypeLabel(req.serviceType) : getCoverageTypeLabel(req.coverageType)}
                       </p>
                     </div>
                     <p className="text-sm text-slate-500 truncate">{req.description}</p>
                     {req.type === "coverage" && (
-                      <p className="text-sm font-semibold text-red-600 mt-1">Prejuízo estimado: {formatCurrency((req as any).estimatedLoss)}</p>
+                      <p className="text-sm font-semibold text-red-600 mt-1">Prejuízo estimado: {formatCurrency(req.estimatedLoss)}</p>
                     )}
                   </div>
                   <div className="flex-shrink-0 text-right">
@@ -184,19 +184,19 @@ export default function AdminRequestsPage() {
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Tipo</p>
                   <p className="text-sm font-semibold text-slate-900">
-                    {selectedRequest.type === "service" ? getServiceTypeLabel((selectedRequest as any).serviceType) : getCoverageTypeLabel((selectedRequest as any).coverageType)}
+                    {selectedRequest.type === "service" ? getServiceTypeLabel(selectedRequest.serviceType) : getCoverageTypeLabel(selectedRequest.coverageType)}
                   </p>
                 </div>
                 {selectedRequest.type === "service" && (
                   <div>
                     <p className="text-xs font-medium text-slate-500 mb-1">Data Desejada</p>
-                    <p className="text-sm text-slate-700">{new Date((selectedRequest as any).desiredDate).toLocaleDateString("pt-BR")}</p>
+                    <p className="text-sm text-slate-700">{new Date(selectedRequest.desiredDate).toLocaleDateString("pt-BR")}</p>
                   </div>
                 )}
                 {selectedRequest.type === "coverage" && (
                   <div>
                     <p className="text-xs font-medium text-slate-500 mb-1">Valor do Prejuízo</p>
-                    <p className="text-sm font-semibold text-red-600">{formatCurrency((selectedRequest as any).estimatedLoss)}</p>
+                    <p className="text-sm font-semibold text-red-600">{formatCurrency(selectedRequest.estimatedLoss)}</p>
                   </div>
                 )}
                 <div>

@@ -69,14 +69,14 @@ export default function ClientRequestsPage() {
                         <StatusBadge {...statusCfg} />
                       </div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {isService ? getServiceTypeLabel((req as any).serviceType) : getCoverageTypeLabel((req as any).coverageType)}
+                        {req.type === "service" ? getServiceTypeLabel(req.serviceType) : getCoverageTypeLabel(req.coverageType)}
                       </p>
                       <p className="text-sm text-slate-500 mt-1 leading-relaxed">{req.description}</p>
-                      {!isService && (req as any).estimatedLoss && (
-                        <p className="text-sm font-semibold text-red-600 mt-1">Prejuízo: {formatCurrency((req as any).estimatedLoss)}</p>
+                      {req.type === "coverage" && req.estimatedLoss && (
+                        <p className="text-sm font-semibold text-red-600 mt-1">Prejuízo: {formatCurrency(req.estimatedLoss)}</p>
                       )}
-                      {!isService && (req as any).approvedAmount && (
-                        <p className="text-sm font-semibold text-emerald-600 mt-1">✅ Aprovado: {formatCurrency((req as any).approvedAmount)}</p>
+                      {req.type === "coverage" && req.approvedAmount && (
+                        <p className="text-sm font-semibold text-emerald-600 mt-1">✅ Aprovado: {formatCurrency(req.approvedAmount)}</p>
                       )}
                       {req.adminNotes && (
                         <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg">
@@ -84,8 +84,8 @@ export default function ClientRequestsPage() {
                           <p className="text-xs text-amber-700">{req.adminNotes}</p>
                         </div>
                       )}
-                      {isService && (req as any).desiredDate && (
-                        <p className="text-xs text-slate-400 mt-2">📅 Data desejada: {new Date((req as any).desiredDate).toLocaleDateString("pt-BR")}</p>
+                      {req.type === "service" && req.desiredDate && (
+                        <p className="text-xs text-slate-400 mt-2">📅 Data desejada: {new Date(req.desiredDate).toLocaleDateString("pt-BR")}</p>
                       )}
                     </div>
                   </div>

@@ -12,12 +12,14 @@ import { requestsService } from "@/services/requests.service";
 import { COVERAGE_TYPES } from "@/constants";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import axios from "axios";
+import type { CoverageType } from "@/types";
 
 export default function NewCoverageRequestPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [coverageType, setCoverageType] = useState("theft");
+  const [coverageType, setCoverageType] = useState<CoverageType>("theft");
   const [description, setDescription] = useState("");
   const [estimatedLoss, setEstimatedLoss] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -38,7 +40,7 @@ export default function NewCoverageRequestPage() {
   const createMutation = useMutation({
     mutationFn: () =>
       requestsService.createCoverage({
-        coverageType: coverageType as any,
+        coverageType,
         description,
         estimatedLoss: Number(estimatedLoss),
         evidenceUrls: [],
@@ -47,8 +49,12 @@ export default function NewCoverageRequestPage() {
       setSubmitted(true);
       toast.success("Chamado de cobertura enviado! Em análise.");
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Erro ao enviar chamado.");
+    onError: (err: unknown) => {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "Erro ao enviar chamado.")
+          : "Erro ao enviar chamado."
+      );
     },
   });
 

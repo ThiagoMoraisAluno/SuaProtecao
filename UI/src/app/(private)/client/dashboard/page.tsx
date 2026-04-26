@@ -15,6 +15,7 @@ import {
   getServiceTypeLabel, getCoverageTypeLabel,
 } from "@/lib/utils";
 import { WHATSAPP_URL } from "@/constants";
+import type { CoverageRequest } from "@/types";
 
 export default function ClientDashboardPage() {
   const { user } = useAuth();
@@ -52,8 +53,8 @@ export default function ClientDashboardPage() {
 
   const coverageUsed = useMemo(() => {
     return requests
-      .filter((r) => r.type === "coverage" && r.status === "approved")
-      .reduce((sum, r) => sum + ((r as any).approvedAmount || 0), 0);
+      .filter((r): r is CoverageRequest => r.type === "coverage" && r.status === "approved")
+      .reduce((sum, r) => sum + (r.approvedAmount ?? 0), 0);
   }, [requests]);
 
   const coverageRemaining = plan ? Math.max(0, plan.coverageLimit - coverageUsed) : 0;
@@ -254,7 +255,7 @@ export default function ClientDashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-slate-900">
-                        {req.type === "service" ? getServiceTypeLabel((req as any).serviceType) : getCoverageTypeLabel((req as any).coverageType)}
+                        {req.type === "service" ? getServiceTypeLabel(req.serviceType) : getCoverageTypeLabel(req.coverageType)}
                       </p>
                       <p className="text-xs text-slate-400">{new Date(req.createdAt).toLocaleDateString("pt-BR")}</p>
                     </div>

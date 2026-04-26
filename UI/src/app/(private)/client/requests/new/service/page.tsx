@@ -10,14 +10,15 @@ import { clientsService } from "@/services/clients.service";
 import { plansService } from "@/services/plans.service";
 import { requestsService } from "@/services/requests.service";
 import { SERVICE_TYPES } from "@/constants";
-import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import axios from "axios";
+import type { ServiceType } from "@/types";
 
 export default function NewServiceRequestPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [serviceType, setServiceType] = useState("plumber");
+  const [serviceType, setServiceType] = useState<ServiceType>("plumber");
   const [description, setDescription] = useState("");
   const [desiredDate, setDesiredDate] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -37,13 +38,17 @@ export default function NewServiceRequestPage() {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      requestsService.createService({ serviceType: serviceType as any, description, desiredDate }),
+      requestsService.createService({ serviceType, description, desiredDate }),
     onSuccess: () => {
       setSubmitted(true);
       toast.success("Chamado de serviço enviado com sucesso!");
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Erro ao enviar chamado.");
+    onError: (err: unknown) => {
+      toast.error(
+        axios.isAxiosError<{ message: string }>(err)
+          ? (err.response?.data?.message ?? "Erro ao enviar chamado.")
+          : "Erro ao enviar chamado."
+      );
     },
   });
 
