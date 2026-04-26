@@ -1,4 +1,5 @@
 "use client";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 import { Search, X, Check } from "lucide-react";
 import { StatusBadge } from "@/components/features/StatusBadge";
@@ -42,9 +43,7 @@ export default function AdminRequestsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
-      </div>
+      <PageSkeleton />
     );
   }
 
