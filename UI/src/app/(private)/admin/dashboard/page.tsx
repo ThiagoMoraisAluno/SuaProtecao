@@ -1,52 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Users, UserCheck, TrendingUp, AlertCircle, FileText,
   Shield, DollarSign, BarChart3, Award,
 } from "lucide-react";
 import { MetricCard } from "@/components/features/MetricCard";
 import { StatusBadge } from "@/components/features/StatusBadge";
-import { clientsService } from "@/services/clients.service";
-import { supervisorsService } from "@/services/supervisors.service";
-import { requestsService } from "@/services/requests.service";
-import { plansService } from "@/services/plans.service";
 import { formatCurrency, getRequestStatusConfig } from "@/lib/utils";
+import { useAdminDashboard } from "@/application/usecases/admin/useAdminDashboard";
 
 export default function AdminDashboardPage() {
-  const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => clientsService.findAll() });
-  const { data: supervisors = [] } = useQuery({ queryKey: ["supervisors"], queryFn: () => supervisorsService.findAll() });
-  const { data: requests = [] } = useQuery({ queryKey: ["requests"], queryFn: () => requestsService.findAll() });
-  const { data: plans = [], isLoading } = useQuery({ queryKey: ["plans"], queryFn: () => plansService.findAll() });
-
-  const metrics = useMemo(() => {
-    const active = clients.filter((c) => c.status === "active").length;
-    const defaulter = clients.filter((c) => c.status === "defaulter").length;
-    const openRequests = requests.filter((r) => ["pending", "in_progress", "analyzing"].includes(r.status)).length;
-    const revenue = clients
-      .filter((c) => c.status === "active")
-      .reduce((sum, c) => {
-        const plan = plans.find((p) => p.id === c.planId);
-        return sum + (plan?.price || 0);
-      }, 0);
-    const byPlan = plans.map((p) => ({
-      ...p,
-      count: clients.filter((c) => c.planId === p.id).length,
-    }));
-    return { active, defaulter, openRequests, revenue, byPlan };
-  }, [clients, requests, plans]);
-
-  const supervisorRanking = useMemo(() => {
-    return supervisors
-      .map((s) => {
-        const sc = clients.filter((c) => c.supervisorId === s.id);
-        return { ...s, totalClients: sc.length, activeClients: sc.filter((c) => c.status === "active").length };
-      })
-      .sort((a, b) => b.activeClients - a.activeClients);
-  }, [supervisors, clients]);
-
-  const recentRequests = useMemo(() => requests.slice(0, 5), [requests]);
+  const {
+    isLoading,
+    clients,
+    supervisors,
+    requests,
+    metrics,
+    supervisorRanking,
+    recentRequests,
+  } = useAdminDashboard();
 
   if (isLoading) {
     return (

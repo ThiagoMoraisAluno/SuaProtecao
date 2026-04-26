@@ -1,73 +1,43 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import { Search, X, Check } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/features/StatusBadge";
-import { requestsService, type UpdateRequestDto } from "@/services/requests.service";
 import {
   getRequestStatusConfig, getServiceTypeLabel, getCoverageTypeLabel,
   formatCurrency, formatDateTime,
 } from "@/lib/utils";
-import { toast } from "sonner";
-import type { RequestStatus, Request } from "@/types";
-
-const SERVICE_STATUSES: RequestStatus[] = ["pending", "in_progress", "completed"];
-const COVERAGE_STATUSES: RequestStatus[] = ["analyzing", "approved", "denied"];
+import { useRequestsFilter } from "@/application/usecases/admin/useRequestsFilter";
+import { useRequestUpdate } from "@/application/usecases/admin/useRequestUpdate";
+import type { RequestStatus } from "@/types";
 
 export default function AdminRequestsPage() {
-  const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "service" | "coverage">("all");
-  const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all");
-  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
-  const [adminNotes, setAdminNotes] = useState("");
-  const [newStatus, setNewStatus] = useState<RequestStatus>("pending");
-  const [approvedAmount, setApprovedAmount] = useState("");
+  const {
+    requests,
+    filtered,
+    isLoading,
+    search,
+    setSearch,
+    typeFilter,
+    setTypeFilter,
+    statusFilter,
+    setStatusFilter,
+  } = useRequestsFilter();
 
-  const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["requests"],
-    queryFn: () => requestsService.findAll(),
-  });
+  const {
+    selectedRequest,
+    adminNotes,
+    setAdminNotes,
+    newStatus,
+    setNewStatus,
+    approvedAmount,
+    setApprovedAmount,
+    openDetail,
+    closeDetail,
+    handleUpdate,
+    isPending,
+    getStatuses,
+  } = useRequestUpdate();
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: UpdateRequestDto }) =>
-      requestsService.updateStatus(id, dto),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["requests"] });
-      setSelectedRequest(null);
-      toast.success("Chamado atualizado!");
-    },
-    onError: () => toast.error("Erro ao atualizar chamado."),
-  });
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return requests.filter((r) => {
-      const matchSearch = !q || r.clientName.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
-      const matchType = typeFilter === "all" || r.type === typeFilter;
-      const matchStatus = statusFilter === "all" || r.status === statusFilter;
-      return matchSearch && matchType && matchStatus;
-    });
-  }, [requests, search, typeFilter, statusFilter]);
-
-  const openDetail = (req: Request) => {
-    setSelectedRequest(req);
-    setAdminNotes(req.adminNotes || "");
-    setNewStatus(req.status);
-    setApprovedAmount(req.type === "coverage" && req.approvedAmount ? String(req.approvedAmount) : "");
-  };
-
-  const handleUpdate = () => {
-    if (!selectedRequest) return;
-    const dto: UpdateRequestDto = { status: newStatus, adminNotes };
-    if (selectedRequest.type === "coverage" && approvedAmount) {
-      dto.approvedAmount = Number(approvedAmount);
-    }
-    updateMutation.mutate({ id: selectedRequest.id, dto });
-  };
-
-  const getStatuses = (req: Request) => req.type === "service" ? SERVICE_STATUSES : COVERAGE_STATUSES;
   const getStatusLabel = (s: RequestStatus) => getRequestStatusConfig(s).label;
 
   if (isLoading) {
@@ -165,12 +135,12 @@ export default function AdminRequestsPage() {
       </div>
 
       {selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setSelectedRequest(null)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={closeDetail}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-slate-100">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold text-slate-900">Detalhes do Chamado</h2>
-                <button onClick={() => setSelectedRequest(null)} className="p-2 hover:bg-slate-100 rounded-lg">
+                <button onClick={closeDetail} className="p-2 hover:bg-slate-100 rounded-lg">
                   <X size={18} className="text-slate-500" />
                 </button>
               </div>
@@ -232,9 +202,9 @@ export default function AdminRequestsPage() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setSelectedRequest(null)} className="btn-secondary flex-1 justify-center">Cancelar</button>
-                <button onClick={handleUpdate} disabled={updateMutation.isPending} className="btn-primary flex-1 justify-center">
-                  {updateMutation.isPending ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check size={18} />}
+                <button onClick={closeDetail} className="btn-secondary flex-1 justify-center">Cancelar</button>
+                <button onClick={handleUpdate} disabled={isPending} className="btn-primary flex-1 justify-center">
+                  {isPending ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check size={18} />}
                   Salvar Alterações
                 </button>
               </div>

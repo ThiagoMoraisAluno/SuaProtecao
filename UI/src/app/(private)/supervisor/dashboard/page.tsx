@@ -1,51 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { Users, UserCheck, AlertCircle, TrendingUp, UserPlus } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { MetricCard } from "@/components/features/MetricCard";
 import { StatusBadge } from "@/components/features/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
-import { supervisorsService } from "@/services/supervisors.service";
-import { plansService } from "@/services/plans.service";
 import { getClientStatusConfig, getPlanLabel, formatDate, formatCurrency } from "@/lib/utils";
+import { useSupervisorDashboard } from "@/application/usecases/supervisor/useSupervisorDashboard";
 
 export default function SupervisorDashboardPage() {
   const { user } = useAuth();
-
-  const { data: clients = [], isLoading } = useQuery({
-    queryKey: ["supervisor-clients", user?.id],
-    queryFn: () => supervisorsService.getClients(user!.id),
-    enabled: !!user?.id,
-  });
-
-  const { data: plans = [] } = useQuery({
-    queryKey: ["plans"],
-    queryFn: () => plansService.findAll(),
-  });
-
-  const stats = useMemo(() => ({
-    total: clients.length,
-    active: clients.filter((c) => c.status === "active").length,
-    defaulter: clients.filter((c) => c.status === "defaulter").length,
-    inactive: clients.filter((c) => c.status === "inactive").length,
-  }), [clients]);
-
-  const monthlyCommission = useMemo(() => {
-    return clients
-      .filter((c) => c.status === "active")
-      .reduce((sum, c) => {
-        const plan = plans.find((p) => p.id === c.planId);
-        return sum + (plan?.price || 0) * 0.10;
-      }, 0);
-  }, [clients, plans]);
-
-  const recentClients = useMemo(() => {
-    return [...clients]
-      .sort((a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime())
-      .slice(0, 5);
-  }, [clients]);
+  const { isLoading, stats, monthlyCommission, recentClients } = useSupervisorDashboard();
 
   if (isLoading) {
     return (
