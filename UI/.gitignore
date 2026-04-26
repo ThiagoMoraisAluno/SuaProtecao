@@ -33,16 +33,8 @@ dist-ssr
 out/
 next-env.d.ts
 
-# 1. Crie o .gitignore se não existir, ou abra o existente e adicione:
-echo ".agents/" >> .gitignore
-echo ".claude/" >> .gitignore
-echo "skills-lock.json" >> .gitignore
 
-# 2. Remove essas pastas do rastreamento do git
-git rm -r --cached UI/.agents/
-git rm -r --cached UI/.claude/
-git rm -r --cached UI/skills-lock.json
+.agents/
+.claude/
+skills-lock.json
 
-# 3. Commit da limpeza
-git add .gitignore
-git commit -m "chore: remove claude code internal folders from git tracking"
