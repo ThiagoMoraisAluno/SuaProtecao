@@ -2,21 +2,24 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { saveTokens, clearTokens, getUser } from "@/lib/auth";
+import { tokenService } from "@/infrastructure/auth/tokenService";
+import type { StoredUser } from "@/infrastructure/auth/tokenService";
+import api from "@/infrastructure/http/api";
 import type { UserRole } from "@/types";
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  phone?: string;
-}
+// AuthUser é alias de StoredUser — re-exportado para compatibilidade com código existente
+export type AuthUser = StoredUser;
 
 interface LoginApiResponse {
   accessToken: string;
   refreshToken: string;
-  user: AuthUser;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+    phone?: string;
+  };
 }
 
 interface AuthContextValue {
@@ -29,15 +32,13 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => getUser());
+  const [user, setUser] = useState<AuthUser | null>(() => tokenService.getUser());
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     setIsLoading(true);
     try {
-      // Dynamic import to avoid circular dependency (api uses Cookies, auth uses api)
-      const api = (await import("@/lib/api")).default;
       const { data } = await api.post<LoginApiResponse>("/auth/login", { email, password });
       const authUser: AuthUser = {
         id: data.user.id,
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: data.user.role,
         phone: data.user.phone,
       };
-      saveTokens(data.accessToken, data.refreshToken, authUser);
+      tokenService.saveTokens(data.accessToken, data.refreshToken, authUser);
       setUser(authUser);
       return authUser;
     } finally {
@@ -56,12 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      const api = (await import("@/lib/api")).default;
       await api.post("/auth/logout");
     } catch {
-      // ignore errors on logout
+      // ignora erros no logout — sessão será limpa de qualquer forma
     } finally {
-      clearTokens();
+      tokenService.clearTokens();
       setUser(null);
       router.push("/login");
     }

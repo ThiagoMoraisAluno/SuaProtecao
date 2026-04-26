@@ -1,43 +1,48 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+
+// Mapeamento rota → role exigida. Adicionar novas roles aqui sem tocar no restante.
+const ROLE_PREFIXES: Record<string, string> = {
+  "/admin": "admin",
+  "/supervisor": "supervisor",
+  "/client": "client",
+};
+
+function redirectToLogin(request: NextRequest, clearCookies = false): NextResponse {
+  const response = NextResponse.redirect(new URL("/login", request.url));
+  if (clearCookies) {
+    response.cookies.delete("access_token");
+    response.cookies.delete("refresh_token");
+    response.cookies.delete("user");
+  }
+  return response;
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const token = request.cookies.get("access_token")?.value;
-  const userCookie = request.cookies.get("user")?.value;
 
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isSupervisorRoute = pathname.startsWith("/supervisor");
-  const isClientRoute = pathname.startsWith("/client");
-  const isProtectedRoute = isAdminRoute || isSupervisorRoute || isClientRoute;
+  const matchedPrefix = Object.keys(ROLE_PREFIXES).find((p) =>
+    pathname.startsWith(p)
+  );
 
-  if (!isProtectedRoute) {
-    return NextResponse.next();
-  }
+  if (!matchedPrefix) return NextResponse.next();
 
-  if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
+  const accessToken = request.cookies.get("access_token")?.value;
+  if (!accessToken) return redirectToLogin(request);
 
-  if (userCookie) {
+  const userRaw = request.cookies.get("user")?.value;
+  if (userRaw) {
     try {
-      const user = JSON.parse(decodeURIComponent(userCookie));
-      const role: string = user.role;
+      const user = JSON.parse(decodeURIComponent(userRaw)) as { role: string };
+      const requiredRole = ROLE_PREFIXES[matchedPrefix];
 
-      if (isAdminRoute && role !== "admin") {
-        return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url));
-      }
-      if (isSupervisorRoute && role !== "supervisor") {
-        return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url));
-      }
-      if (isClientRoute && role !== "client") {
-        return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url));
+      if (user.role !== requiredRole) {
+        return NextResponse.redirect(
+          new URL(`/${user.role}/dashboard`, request.url)
+        );
       }
     } catch {
-      const response = NextResponse.redirect(new URL("/login", request.url));
-      response.cookies.delete("access_token");
-      response.cookies.delete("refresh_token");
-      response.cookies.delete("user");
-      return response;
+      // Cookie corrompido → força novo login e limpa sessão
+      return redirectToLogin(request, true);
     }
   }
 
