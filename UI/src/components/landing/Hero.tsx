@@ -158,7 +158,7 @@ export function Hero() {
               initial={{ opacity: 0, x: -24 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.7, ease: "easeOut", delay: 0.9 }}
-              className="absolute left-2 top-[28%] flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 shadow-2xl shadow-navy-950/50 backdrop-blur-md lg:-left-40"
+              className="absolute bottom-32 right-0 z-10 flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 shadow-2xl shadow-navy-950/50 backdrop-blur-md md:bottom-40"
             >
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-white">
                 <Award className="h-5 w-5" />
