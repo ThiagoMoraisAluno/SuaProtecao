@@ -14,7 +14,7 @@ export default function AdminSupervisorsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", commission: "10", password: "123456" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", commission: "10", password: "" });
 
   const { data: supervisors = [], isLoading } = useQuery({
     queryKey: ["supervisors"],
@@ -38,7 +38,7 @@ export default function AdminSupervisorsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["supervisors"] });
       setShowForm(false);
-      setForm({ name: "", email: "", phone: "", commission: "10", password: "123456" });
+      setForm({ name: "", email: "", phone: "", commission: "10", password: "" });
       toast.success(`Supervisor ${form.name} cadastrado!`);
     },
     onError: (err: unknown) => {

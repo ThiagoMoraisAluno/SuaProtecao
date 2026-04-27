@@ -25,7 +25,7 @@ interface FormState {
 }
 
 const defaultForm: FormState = {
-  name: "", email: "", phone: "", cpf: "", password: "123456",
+  name: "", email: "", phone: "", cpf: "", password: "",
   street: "", number: "", complement: "",
   neighborhood: "", city: "", state: "SP", zipCode: "",
   planId: "intermediate",

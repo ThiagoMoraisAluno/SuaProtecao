@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Shield, Eye, EyeOff, ArrowRight, Loader2, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import axios from "axios";
+
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 const demoAccounts = [
   { role: "Admin Master", email: "admin@demo.com" },
@@ -30,13 +31,11 @@ export default function LoginPage() {
       else if (user.role === "supervisor") router.push("/supervisor/dashboard");
       else router.push("/client/dashboard");
     } catch (err) {
-      toast.error(
-        axios.isAxiosError<{ message: string }>(err)
-          ? (err.response?.data?.message ?? "E-mail ou senha incorretos.")
-          : err instanceof Error
-            ? err.message
-            : "E-mail ou senha incorretos."
-      );
+      // Mensagens cruas (network, parse) sempre mostram fallback. Backend messages
+      // chegam via AuthContext e só são exibidas se tiverem formato razoável.
+      const raw = err instanceof Error ? err.message : "";
+      const isSafe = raw.length > 0 && raw.length <= 120 && !/[<>{}]/.test(raw);
+      toast.error(isSafe ? raw : "E-mail ou senha incorretos.");
     }
   };
 
@@ -111,24 +110,26 @@ export default function LoginPage() {
               </div>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-slate-100">
-              <p className="text-xs font-semibold text-slate-500 mb-3 text-center">CONTAS DE DEMONSTRAÇÃO</p>
-              <div className="space-y-2">
-                {demoAccounts.map((acc) => (
-                  <button
-                    key={acc.email}
-                    onClick={() => { setEmail(acc.email); setPassword("123456"); }}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all text-sm group"
-                  >
-                    <span className="font-medium text-slate-700">{acc.role}</span>
-                    <span className="text-xs text-slate-400 group-hover:text-slate-600 font-mono">{acc.email}</span>
-                  </button>
-                ))}
-                <p className="text-center text-xs text-slate-400 mt-2">
-                  Senha: <code className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">123456</code>
-                </p>
+            {isDemoMode && (
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 mb-3 text-center">CONTAS DE DEMONSTRAÇÃO</p>
+                <div className="space-y-2">
+                  {demoAccounts.map((acc) => (
+                    <button
+                      key={acc.email}
+                      onClick={() => { setEmail(acc.email); setPassword("123456"); }}
+                      className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all text-sm group"
+                    >
+                      <span className="font-medium text-slate-700">{acc.role}</span>
+                      <span className="text-xs text-slate-400 group-hover:text-slate-600 font-mono">{acc.email}</span>
+                    </button>
+                  ))}
+                  <p className="text-center text-xs text-slate-400 mt-2">
+                    Senha: <code className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">123456</code>
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
