@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const API = process.env.NEXT_PUBLIC_API_URL!;
+const API = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface RefreshEnvelope {
   data: { accessToken: string };

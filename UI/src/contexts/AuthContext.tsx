@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { tokenService } from "@/infrastructure/auth/tokenService";
 import type { StoredUser } from "@/infrastructure/auth/tokenService";
@@ -30,14 +30,24 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => tokenService.getUser());
-  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const router = useRouter();
 
+  // Hidrata o estado do usuário a partir do cookie httpOnly via /api/auth/me.
+  // /me retorna 200 com null quando anônimo, então não há 401 ruidoso no console.
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json() as Promise<AuthUser | null>)
+      .then((data) => { setUser(data); })
+      .catch(() => { setUser(null); })
+      .finally(() => { setIsInitializing(false); });
+  }, []);
+
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
-    setIsLoading(true);
+    setIsLoggingIn(true);
     try {
-      // Chama o proxy Next.js que seta o refresh_token como cookie httpOnly
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,27 +61,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = await res.json() as LoginApiResponse;
 
-      const authUser: AuthUser = {
-        id: data.user.id,
-        name: data.user.name,
-        email: data.user.email,
-        role: data.user.role,
-        phone: data.user.phone,
-      };
+      // Salva o access token antes de qualquer fetch subsequente
+      tokenService.saveTokens(data.accessToken, data.user as AuthUser);
 
-      // Salva access_token em sessionStorage + user em cookie regular (para o middleware)
-      tokenService.saveTokens(data.accessToken, authUser);
+      // Confirma que o cookie httpOnly user foi gravado pelo servidor.
+      // Só após isso o caller pode redirecionar com segurança. Se /me retornar
+      // null (cookie não setado), cai no payload do login como fallback.
+      const meRes = await fetch("/api/auth/me");
+      const meUser = (await meRes.json()) as AuthUser | null;
+      const authUser: AuthUser = meUser ?? (data.user as AuthUser);
+
       setUser(authUser);
       return authUser;
     } finally {
-      setIsLoading(false);
+      setIsLoggingIn(false);
     }
   }, []);
 
   const logout = useCallback(async () => {
     try {
       const accessToken = tokenService.getAccessToken();
-      // Chama o proxy Next.js que limpa o cookie httpOnly refresh_token
       await fetch("/api/auth/logout", {
         method: "POST",
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
@@ -86,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading: isInitializing || isLoggingIn, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

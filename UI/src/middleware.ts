@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
   const userRaw = request.cookies.get("user")?.value;
   if (userRaw) {
     try {
-      const user = JSON.parse(decodeURIComponent(userRaw)) as { role: string };
+      const user = JSON.parse(userRaw) as { role: string };
       const requiredRole = ROLE_PREFIXES[matchedPrefix];
 
       if (user.role !== requiredRole) {
@@ -42,8 +42,7 @@ export function middleware(request: NextRequest) {
         );
       }
     } catch {
-      // Cookie corrompido → força novo login e limpa sessão
-      return redirectToLogin(request, true);
+      // Cookie de role corrompido — não destrói a sessão (refresh_token ainda é válido)
     }
   }
 
