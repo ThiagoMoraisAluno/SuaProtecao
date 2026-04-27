@@ -41,7 +41,7 @@ async function bootstrap(): Promise<void> {
 
   // CORS restritivo — apenas origem configurada
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   });

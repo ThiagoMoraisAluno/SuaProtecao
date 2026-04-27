@@ -14,9 +14,16 @@ export type AuthTokensDto = {
   refreshToken: string;
 };
 
-/** Tipo público — exposto ao cliente via HTTP body (sem refreshToken) */
+/**
+ * Tipo público — exposto ao cliente via HTTP body.
+ * Inclui refreshToken porque o consumidor primário é um BFF (Next.js API routes
+ * em domínio diferente), que precisa ler o token do body para setar o cookie
+ * HttpOnly no domínio do browser. O refreshToken também continua sendo enviado
+ * como cookie (setAuthCookies) para consumidores same-origin/diretos.
+ */
 export type AuthPublicTokenDto = {
   accessToken: string;
+  refreshToken: string;
 };
 
 /** Tipo público retornado no body após login/register */

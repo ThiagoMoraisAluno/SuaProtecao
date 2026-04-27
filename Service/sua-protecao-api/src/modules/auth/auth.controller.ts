@@ -22,6 +22,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Cookie } from '../../common/decorators/cookie.decorator';
@@ -53,9 +54,9 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthPublicResponseDto> {
-    const { refreshToken, ...publicResult } = await this.authService.login(dto);
-    this.setAuthCookies(res, publicResult.accessToken, refreshToken);
-    return publicResult;
+    const result = await this.authService.login(dto);
+    this.setAuthCookies(res, result.accessToken, result.refreshToken);
+    return result;
   }
 
   @Post('register')
@@ -65,9 +66,9 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthPublicResponseDto> {
-    const { refreshToken, ...publicResult } = await this.authService.register(dto);
-    this.setAuthCookies(res, publicResult.accessToken, refreshToken);
-    return publicResult;
+    const result = await this.authService.register(dto);
+    this.setAuthCookies(res, result.accessToken, result.refreshToken);
+    return result;
   }
 
   @Post('forgot-password')
@@ -92,30 +93,36 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Rotaciona tokens usando o refresh token em cookie' })
+  @ApiOperation({
+    summary: 'Rotaciona tokens usando o refresh token (cookie ou body)',
+  })
   async refresh(
-    @Cookie(REFRESH_TOKEN_COOKIE) refreshToken: string | undefined,
+    @Cookie(REFRESH_TOKEN_COOKIE) cookieToken: string | undefined,
+    @Body() body: RefreshTokenDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthPublicTokenDto> {
+    // Cookie tem prioridade (same-origin); body é fallback para BFF cross-origin
+    const refreshToken = cookieToken ?? body.refreshToken;
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token não encontrado.');
     }
-    const { accessToken, refreshToken: newRefreshToken } =
-      await this.authService.refresh(refreshToken);
-    this.setAuthCookies(res, accessToken, newRefreshToken);
-    return { accessToken };
+    const tokens = await this.authService.refresh(refreshToken);
+    this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+    return tokens;
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Invalida a sessão atual (cookie refresh_token)' })
+  @ApiOperation({ summary: 'Invalida a sessão atual (cookie ou body)' })
   async logout(
-    @Cookie(REFRESH_TOKEN_COOKIE) refreshToken: string | undefined,
+    @Cookie(REFRESH_TOKEN_COOKIE) cookieToken: string | undefined,
+    @Body() body: RefreshTokenDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     this.clearAuthCookies(res);
+    const refreshToken = cookieToken ?? body.refreshToken;
     if (refreshToken) {
       await this.authService.logout(refreshToken);
     }
