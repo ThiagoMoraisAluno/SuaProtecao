@@ -12,8 +12,9 @@ import { motion } from "framer-motion";
 import { CountUp } from "./motion";
 
 // Official Brazil states GeoJSON (IBGE-based, maintained dataset)
-const GEO_URL =
-  "https://raw.githubusercontent.com/giuliano-macedo/geodata-br-states/main/geojson/br_states.geojson";
+// Servido de /public para evitar dependência de repo externo (que já quebrou
+// uma vez quando o arquivo foi renomeado upstream).
+const GEO_URL = "/br_states.json";
 
 type Capital = {
   name: string;
