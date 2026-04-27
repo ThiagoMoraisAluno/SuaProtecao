@@ -4,15 +4,13 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { useRouter } from "next/navigation";
 import { tokenService } from "@/infrastructure/auth/tokenService";
 import type { StoredUser } from "@/infrastructure/auth/tokenService";
-import api from "@/infrastructure/http/api";
 import type { UserRole } from "@/types";
 
-// AuthUser é alias de StoredUser — re-exportado para compatibilidade com código existente
+// AuthUser é alias de StoredUser — re-exportado para compatibilidade
 export type AuthUser = StoredUser;
 
 interface LoginApiResponse {
   accessToken: string;
-  refreshToken: string;
   user: {
     id: string;
     name: string;
@@ -39,7 +37,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     setIsLoading(true);
     try {
-      const { data } = await api.post<LoginApiResponse>("/auth/login", { email, password });
+      // Chama o proxy Next.js que seta o refresh_token como cookie httpOnly
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json() as { message?: string };
+        throw new Error(err.message ?? "Credenciais inválidas");
+      }
+
+      const data = await res.json() as LoginApiResponse;
+
       const authUser: AuthUser = {
         id: data.user.id,
         name: data.user.name,
@@ -47,7 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: data.user.role,
         phone: data.user.phone,
       };
-      tokenService.saveTokens(data.accessToken, data.refreshToken, authUser);
+
+      // Salva access_token em sessionStorage + user em cookie regular (para o middleware)
+      tokenService.saveTokens(data.accessToken, authUser);
       setUser(authUser);
       return authUser;
     } finally {
@@ -57,9 +70,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post("/auth/logout");
+      const accessToken = tokenService.getAccessToken();
+      // Chama o proxy Next.js que limpa o cookie httpOnly refresh_token
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
     } catch {
-      // ignora erros no logout — sessão será limpa de qualquer forma
+      // ignora erros de rede — a limpeza local acontece de qualquer forma
     } finally {
       tokenService.clearTokens();
       setUser(null);

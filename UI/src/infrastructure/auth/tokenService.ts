@@ -1,7 +1,9 @@
 import Cookies from "js-cookie";
 import type { UserRole } from "@/types";
 
-const COOKIE_OPTIONS = { secure: true, sameSite: "lax" as const };
+const SESSION_KEY = "access_token";
+const USER_COOKIE  = "user";
+const COOKIE_OPTS  = { secure: true, sameSite: "lax" as const };
 
 export interface StoredUser {
   id: string;
@@ -11,17 +13,33 @@ export interface StoredUser {
   phone?: string;
 }
 
+// ── Access token ─────────────────────────────────────────────────────────────
+// Armazenado em variável de módulo + sessionStorage.
+// NÃO vai para cookie → JS de terceiros nunca consegue lê-lo.
+// Ao fechar o browser, sessionStorage é limpo; na próxima abertura, o
+// refreshInterceptor renova automaticamente via cookie httpOnly.
+
+let _accessToken: string | undefined;
+
+function readSession(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return sessionStorage.getItem(SESSION_KEY) ?? undefined;
+}
+
+// ── API pública ───────────────────────────────────────────────────────────────
+
 export const tokenService = {
   getAccessToken(): string | undefined {
-    return Cookies.get("access_token");
+    return _accessToken ?? readSession();
   },
 
-  getRefreshToken(): string | undefined {
-    return Cookies.get("refresh_token");
+  setAccessToken(token: string): void {
+    _accessToken = token;
+    if (typeof window !== "undefined") sessionStorage.setItem(SESSION_KEY, token);
   },
 
   getUser(): StoredUser | null {
-    const raw = Cookies.get("user");
+    const raw = Cookies.get(USER_COOKIE);
     if (!raw) return null;
     try {
       return JSON.parse(decodeURIComponent(raw)) as StoredUser;
@@ -30,19 +48,16 @@ export const tokenService = {
     }
   },
 
-  saveTokens(accessToken: string, refreshToken: string, user: StoredUser): void {
-    Cookies.set("access_token", accessToken, COOKIE_OPTIONS);
-    Cookies.set("refresh_token", refreshToken, COOKIE_OPTIONS);
-    Cookies.set("user", encodeURIComponent(JSON.stringify(user)), COOKIE_OPTIONS);
-  },
-
-  setAccessToken(token: string): void {
-    Cookies.set("access_token", token, COOKIE_OPTIONS);
+  // refreshToken é gerenciado pelo servidor (cookie httpOnly) — não passa por aqui
+  saveTokens(accessToken: string, user: StoredUser): void {
+    this.setAccessToken(accessToken);
+    Cookies.set(USER_COOKIE, encodeURIComponent(JSON.stringify(user)), COOKIE_OPTS);
   },
 
   clearTokens(): void {
-    Cookies.remove("access_token");
-    Cookies.remove("refresh_token");
-    Cookies.remove("user");
+    _accessToken = undefined;
+    if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
+    Cookies.remove(USER_COOKIE);
+    // refresh_token é limpo pelo servidor via /api/auth/logout
   },
 };

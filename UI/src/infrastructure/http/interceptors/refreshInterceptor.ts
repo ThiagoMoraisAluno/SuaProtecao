@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from "axios";
+import { type AxiosInstance } from "axios";
 import { tokenService } from "@/infrastructure/auth/tokenService";
 import { handleAuthFailure } from "./errorInterceptor";
 
@@ -49,20 +49,19 @@ export function applyRefreshInterceptor(api: AxiosInstance): void {
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = tokenService.getRefreshToken();
-
-      if (!refreshToken) {
-        isRefreshing = false;
-        handleAuthFailure();
-        return Promise.reject(error);
-      }
-
       try {
-        const { data } = await axios.post<{ data: { accessToken: string } }>(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-          { refreshToken }
-        );
-        const newToken = data.data.accessToken;
+        // O cookie httpOnly refresh_token é enviado automaticamente pelo browser.
+        // O Next.js API route o lê server-side e chama o backend — o JS nunca toca nele.
+        const res = await fetch("/api/auth/refresh", { method: "POST" });
+
+        if (!res.ok) {
+          processQueue(new Error("Refresh failed"), null);
+          handleAuthFailure();
+          return Promise.reject(error);
+        }
+
+        const { accessToken: newToken } = await res.json() as { accessToken: string };
+
         tokenService.setAccessToken(newToken);
         api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
         processQueue(null, newToken);

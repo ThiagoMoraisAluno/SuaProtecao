@@ -10,7 +10,6 @@ const ROLE_PREFIXES: Record<string, string> = {
 function redirectToLogin(request: NextRequest, clearCookies = false): NextResponse {
   const response = NextResponse.redirect(new URL("/login", request.url));
   if (clearCookies) {
-    response.cookies.delete("access_token");
     response.cookies.delete("refresh_token");
     response.cookies.delete("user");
   }
@@ -26,8 +25,10 @@ export function middleware(request: NextRequest) {
 
   if (!matchedPrefix) return NextResponse.next();
 
-  const accessToken = request.cookies.get("access_token")?.value;
-  if (!accessToken) return redirectToLogin(request);
+  // Verifica o cookie httpOnly refresh_token (legível server-side, não pelo JS do browser).
+  // O access_token fica em sessionStorage — inacessível no middleware Edge.
+  const refreshToken = request.cookies.get("refresh_token")?.value;
+  if (!refreshToken) return redirectToLogin(request);
 
   const userRaw = request.cookies.get("user")?.value;
   if (userRaw) {
