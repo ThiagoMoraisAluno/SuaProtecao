@@ -60,10 +60,10 @@ export function Hero() {
               transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
               className="font-display text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl"
             >
-              Reparos Feitos{" "}
-              <span className="italic text-brand-400">Certo.</span>
+              Sua casa{" "}
+              <span className="italic text-brand-400">protegida.</span>
               <br />
-              Sempre.
+              Seu reparo resolvido.
             </motion.h1>
 
             <motion.p
