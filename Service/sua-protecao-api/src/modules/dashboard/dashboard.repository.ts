@@ -6,21 +6,43 @@ import {
   AdminDashboardDto,
   SupervisorDashboardDto,
   ClientDashboardDto,
+  LossByPlanDto,
 } from './dto/dashboard-response.dto';
+
+const PERCENT_PRECISION = 2;
+
+function rate(part: number, total: number): number {
+  if (total === 0) return 0;
+  return Number(((part / total) * 100).toFixed(PERCENT_PRECISION));
+}
+
+function startOfCurrentYear(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), 0, 1);
+}
 
 @Injectable()
 export class DashboardRepository implements IDashboardRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAdminDashboard(): Promise<AdminDashboardDto> {
-    const [clients, supervisors, requests, recentRequests] = await Promise.all([
+    const yearStart = startOfCurrentYear();
+
+    const [
+      clients,
+      supervisors,
+      requests,
+      recentRequests,
+      serviceUsageRaw,
+      approvedCoverageByPlan,
+      plans,
+    ] = await Promise.all([
       this.prisma.client.findMany({ include: { plan: true } }),
       this.prisma.supervisor.findMany({
         include: {
           user: { include: { profile: true } },
-          clients: { where: { status: ClientStatus.active } },
+          clients: true,
         },
-        orderBy: { clients: { _count: 'desc' } },
       }),
       this.prisma.request.findMany({
         select: { status: true, type: true },
@@ -37,6 +59,23 @@ export class DashboardRepository implements IDashboardRepository {
           createdAt: true,
         },
       }),
+      this.prisma.request.groupBy({
+        by: ['serviceType'],
+        where: {
+          type: RequestType.service,
+          serviceType: { not: null },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.request.findMany({
+        where: {
+          type: RequestType.coverage,
+          status: RequestStatus.approved,
+          createdAt: { gte: yearStart },
+        },
+        select: { clientId: true, approvedAmount: true },
+      }),
+      this.prisma.plan.findMany(),
     ]);
 
     const totalClients = clients.length;
@@ -76,18 +115,74 @@ export class DashboardRepository implements IDashboardRepository {
       premium: clients.filter((c) => c.plan.type === 'premium').length,
     };
 
-    const topSupervisors = supervisors.slice(0, 5).map((s) => ({
-      id: s.id,
-      name: s.user.profile?.username ?? '',
-      clients: s.clients.length,
-      activeClients: s.clients.length,
-    }));
+    // Ranking de supervisores: ordena por clientes ativos (desc); empate menor inadimplência
+    const supervisorsRanked = supervisors
+      .map((s) => {
+        const total = s.clients.length;
+        const active = s.clients.filter(
+          (c) => c.status === ClientStatus.active,
+        ).length;
+        const defaulter = s.clients.filter(
+          (c) => c.status === ClientStatus.defaulter,
+        ).length;
+        return {
+          id: s.id,
+          name: s.user.profile?.username ?? '',
+          clients: total,
+          activeClients: active,
+          defaulterClients: defaulter,
+          defaulterRate: rate(defaulter, total),
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.activeClients - a.activeClients ||
+          a.defaulterRate - b.defaulterRate,
+      );
+
+    const topSupervisors = supervisorsRanked.slice(0, 5);
+
+    // Uso por serviço — só requests do tipo service
+    const serviceUsage = serviceUsageRaw
+      .filter((row) => row.serviceType !== null)
+      .map((row) => ({
+        serviceType: row.serviceType as string,
+        count: row._count._all,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Prejuízo por plano (ano corrente):
+    //   receita mensal projetada (clientes ativos × preço) − cobertura aprovada no ano
+    const clientToPlanId = new Map(clients.map((c) => [c.id, c.planId]));
+    const approvedByPlan = new Map<string, number>();
+    for (const row of approvedCoverageByPlan) {
+      const planId = clientToPlanId.get(row.clientId);
+      if (!planId) continue;
+      const current = approvedByPlan.get(planId) ?? 0;
+      approvedByPlan.set(planId, current + Number(row.approvedAmount ?? 0));
+    }
+
+    const lossByPlan: LossByPlanDto[] = plans.map((plan) => {
+      const planActive = clients.filter(
+        (c) => c.planId === plan.id && c.status === ClientStatus.active,
+      ).length;
+      const monthly = planActive * Number(plan.price);
+      const approved = approvedByPlan.get(plan.id) ?? 0;
+      return {
+        planId: plan.id,
+        planName: plan.name,
+        monthlyRevenue: Number(monthly.toFixed(2)),
+        approvedCoverageThisYear: Number(approved.toFixed(2)),
+        netResultThisYear: Number((monthly * 12 - approved).toFixed(2)),
+      };
+    });
 
     return {
       totalClients,
       activeClients,
       defaulterClients,
       inactiveClients,
+      defaulterRate: rate(defaulterClients, totalClients),
       totalSupervisors: supervisors.length,
       openRequests,
       pendingCoverage,
@@ -95,6 +190,8 @@ export class DashboardRepository implements IDashboardRepository {
       clientsByPlan,
       topSupervisors,
       recentRequests,
+      serviceUsage,
+      lossByPlan,
     };
   }
 
@@ -134,6 +231,7 @@ export class DashboardRepository implements IDashboardRepository {
       activeClients,
       defaulterClients,
       inactiveClients,
+      defaulterRate: rate(defaulterClients, totalClients),
       estimatedMonthlyCommission: Number(estimatedMonthlyCommission.toFixed(2)),
       commissionPercentage: commission,
       recentClients: clients.slice(0, 5).map((c) => ({

@@ -1,5 +1,7 @@
 import {
   IsArray,
+  IsBoolean,
+  IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
@@ -7,6 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { BillingCycle } from '@prisma/client';
 
 export class UpdatePlanDto {
   @ApiPropertyOptional()
@@ -36,4 +39,19 @@ export class UpdatePlanDto {
   @IsArray()
   @IsString({ each: true })
   features?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  popular?: boolean;
+
+  @ApiPropertyOptional({ enum: BillingCycle })
+  @IsOptional()
+  @IsEnum(BillingCycle)
+  billingCycle?: BillingCycle;
 }

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { BillingCycle, PlanType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IPlansRepository } from './interfaces/plans-repository.interface';
+import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { PlanResponseDto } from './dto/plan-response.dto';
 
@@ -20,6 +22,31 @@ export class PlansRepository implements IPlansRepository {
     return plan ? this.mapPlan(plan) : null;
   }
 
+  async existsByType(type: string): Promise<boolean> {
+    const plan = await this.prisma.plan.findUnique({
+      where: { type: type as PlanType },
+      select: { id: true },
+    });
+    return !!plan;
+  }
+
+  async create(dto: CreatePlanDto): Promise<PlanResponseDto> {
+    const created = await this.prisma.plan.create({
+      data: {
+        type: dto.type,
+        name: dto.name,
+        price: dto.price,
+        servicesPerMonth: dto.servicesPerMonth,
+        coverageLimit: dto.coverageLimit,
+        features: dto.features,
+        color: dto.color ?? 'brand',
+        popular: dto.popular ?? false,
+        billingCycle: dto.billingCycle ?? BillingCycle.monthly,
+      },
+    });
+    return this.mapPlan(created);
+  }
+
   async update(id: string, dto: UpdatePlanDto): Promise<PlanResponseDto> {
     const updated = await this.prisma.plan.update({
       where: { id },
@@ -33,9 +60,22 @@ export class PlansRepository implements IPlansRepository {
           coverageLimit: dto.coverageLimit,
         }),
         ...(dto.features !== undefined && { features: dto.features }),
+        ...(dto.color !== undefined && { color: dto.color }),
+        ...(dto.popular !== undefined && { popular: dto.popular }),
+        ...(dto.billingCycle !== undefined && {
+          billingCycle: dto.billingCycle,
+        }),
       },
     });
     return this.mapPlan(updated);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.plan.delete({ where: { id } });
+  }
+
+  async countClients(planId: string): Promise<number> {
+    return this.prisma.client.count({ where: { planId } });
   }
 
   private mapPlan(plan: {
@@ -48,6 +88,7 @@ export class PlansRepository implements IPlansRepository {
     features: string[];
     color: string;
     popular: boolean;
+    billingCycle: BillingCycle;
     createdAt: Date;
     updatedAt: Date;
   }): PlanResponseDto {
@@ -61,6 +102,7 @@ export class PlansRepository implements IPlansRepository {
       features: plan.features,
       color: plan.color,
       popular: plan.popular,
+      billingCycle: plan.billingCycle,
       createdAt: plan.createdAt,
       updatedAt: plan.updatedAt,
     };

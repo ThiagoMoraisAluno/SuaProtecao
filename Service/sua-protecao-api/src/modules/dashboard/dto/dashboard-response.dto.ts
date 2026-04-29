@@ -11,6 +11,8 @@ export type TopSupervisorDto = {
   name: string;
   clients: number;
   activeClients: number;
+  defaulterClients: number;
+  defaulterRate: number;
 };
 
 export type RecentRequestDto = {
@@ -22,11 +24,25 @@ export type RecentRequestDto = {
   createdAt: Date;
 };
 
+export type ServiceUsageDto = {
+  serviceType: string;
+  count: number;
+};
+
+export type LossByPlanDto = {
+  planId: string;
+  planName: string;
+  monthlyRevenue: number;
+  approvedCoverageThisYear: number;
+  netResultThisYear: number;
+};
+
 export type AdminDashboardDto = {
   totalClients: number;
   activeClients: number;
   defaulterClients: number;
   inactiveClients: number;
+  defaulterRate: number;
   totalSupervisors: number;
   openRequests: number;
   pendingCoverage: number;
@@ -34,6 +50,8 @@ export type AdminDashboardDto = {
   clientsByPlan: ClientsByPlanDto;
   topSupervisors: TopSupervisorDto[];
   recentRequests: RecentRequestDto[];
+  serviceUsage: ServiceUsageDto[];
+  lossByPlan: LossByPlanDto[];
 };
 
 export type RecentClientDto = {
@@ -49,6 +67,7 @@ export type SupervisorDashboardDto = {
   activeClients: number;
   defaulterClients: number;
   inactiveClients: number;
+  defaulterRate: number;
   estimatedMonthlyCommission: number;
   commissionPercentage: number;
   recentClients: RecentClientDto[];
