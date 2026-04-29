@@ -1,7 +1,7 @@
-import type { Request, ServiceType, CoverageType, RequestStatus } from "@/domain/entities";
+import type { Request, CoverageType, RequestStatus } from "@/domain/entities";
 
 export interface CreateServiceRequestDto {
-  serviceType: ServiceType;
+  serviceId: string;
   description: string;
   desiredDate: string;
 }
@@ -17,7 +17,6 @@ export interface UpdateRequestDto {
   status?: RequestStatus;
   adminNotes?: string;
   approvedAmount?: number;
-  assignedTo?: string;
 }
 
 export interface IRequestRepository {
@@ -26,5 +25,4 @@ export interface IRequestRepository {
   createService(dto: CreateServiceRequestDto): Promise<Request>;
   createCoverage(dto: CreateCoverageRequestDto): Promise<Request>;
   updateStatus(id: string, dto: UpdateRequestDto): Promise<Request>;
-  assign(id: string, assignedTo: string): Promise<Request>;
 }

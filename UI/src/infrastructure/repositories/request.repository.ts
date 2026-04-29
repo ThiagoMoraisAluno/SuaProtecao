@@ -22,12 +22,7 @@ export const requestRepository: IRequestRepository = {
   },
 
   async updateStatus(id: string, dto: UpdateRequestDto): Promise<Request> {
-    const { data } = await api.patch<Request>(`/requests/${id}/status`, dto);
-    return data;
-  },
-
-  async assign(id: string, assignedTo: string): Promise<Request> {
-    const { data } = await api.patch<Request>(`/requests/${id}/assign`, { assignedTo });
+    const { data } = await api.patch<Request>(`/requests/${id}`, dto);
     return data;
   },
 };
