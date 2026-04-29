@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { LogOut, Menu, Shield, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { WHATSAPP_URL } from "@/constants";
+import { NotificationBell } from "@/components/features/NotificationBell";
 
 export interface NavItem {
   path: string;
@@ -143,6 +144,7 @@ export function DashboardLayout({
             </p>
           </div>
           <div className="flex items-center gap-2.5">
+            <NotificationBell />
             <div className={`w-8 h-8 bg-gradient-to-br ${avatarGradient} rounded-full flex items-center justify-center`}>
               <span className="text-xs font-bold text-white">
                 {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
