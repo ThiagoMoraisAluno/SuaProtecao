@@ -24,6 +24,11 @@ enum PlanType {
   premium
 }
 
+enum BillingCycle {
+  monthly
+  annual
+}
+
 enum ClientStatus {
   active
   inactive
@@ -44,6 +49,7 @@ enum RequestType {
   coverage
 }
 
+/// Mantido por compat — substituído por Service (catálogo dinâmico em service_types).
 enum ServiceType {
   plumber
   electrician
@@ -63,6 +69,13 @@ enum CoverageType {
   other
 }
 
+enum NotificationType {
+  request_opened
+  request_updated
+  request_closed
+  payment_overdue
+}
+
 // ─── USER ─────────────────────────────────────────────────────────────────────
 
 model User {
@@ -79,6 +92,7 @@ model User {
 
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  notifications       Notification[]
 
   @@map("users")
 }
@@ -138,21 +152,60 @@ model Supervisor {
 // ─── PLAN ─────────────────────────────────────────────────────────────────────
 
 model Plan {
-  id               String   @id @default(uuid())
-  type             PlanType @unique
+  id               String       @id @default(uuid())
+  type             PlanType     @unique
   name             String
-  price            Decimal  @db.Decimal(10, 2)
-  servicesPerMonth Int      @map("services_per_month")
-  coverageLimit    Decimal  @map("coverage_limit") @db.Decimal(12, 2)
+  price            Decimal      @db.Decimal(10, 2)
+  servicesPerMonth Int          @map("services_per_month")
+  coverageLimit    Decimal      @map("coverage_limit") @db.Decimal(12, 2)
   features         String[]
-  color            String   @default("brand")
-  popular          Boolean  @default(false)
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  color            String       @default("brand")
+  popular          Boolean      @default(false)
+  billingCycle     BillingCycle @default(monthly) @map("billing_cycle")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
 
-  clients Client[]
+  clients      Client[]
+  serviceRules PlanServiceRule[]
 
   @@map("plans")
+}
+
+// ─── SERVICE CATALOG ─────────────────────────────────────────────────────────
+
+model Service {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  icon      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  planRules PlanServiceRule[]
+  requests  Request[]
+
+  @@index([isActive])
+  @@map("services")
+}
+
+model PlanServiceRule {
+  id            String   @id @default(uuid())
+  planId        String   @map("plan_id")
+  serviceId     String   @map("service_id")
+  maxPerMonth   Int      @map("max_per_month")
+  maxPerYear    Int      @map("max_per_year")
+  coverageLimit Decimal  @map("coverage_limit") @db.Decimal(12, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  plan    Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, serviceId])
+  @@index([planId])
+  @@index([serviceId])
+  @@map("plan_service_rules")
 }
 
 // ─── CLIENT ───────────────────────────────────────────────────────────────────
@@ -217,6 +270,7 @@ model Request {
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
   serviceType ServiceType? @map("service_type")
+  serviceId   String?      @map("service_id")
   desiredDate DateTime?    @map("desired_date") @db.Date
 
   coverageType   CoverageType? @map("coverage_type")
@@ -224,11 +278,32 @@ model Request {
   approvedAmount Decimal?      @map("approved_amount") @db.Decimal(12, 2)
   evidenceUrls   String[]      @map("evidence_urls")
 
-  client Client @relation(fields: [clientId], references: [id])
+  client  Client   @relation(fields: [clientId], references: [id])
+  service Service? @relation(fields: [serviceId], references: [id])
 
   @@index([clientId])
   @@index([type])
   @@index([status])
+  @@index([serviceId])
   @@index([createdAt(sort: Desc)])
   @@map("requests")
+}
+
+// ─── NOTIFICATION ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  body      String
+  metadata  Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
 }
