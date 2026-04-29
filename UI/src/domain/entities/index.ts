@@ -57,6 +57,8 @@ export interface Supervisor extends User {
   activeClients: number;
 }
 
+export type BillingCycle = "monthly" | "annual";
+
 export interface Plan {
   id: string;
   type: PlanType;
@@ -67,6 +69,7 @@ export interface Plan {
   features: string[];
   color: string;
   popular?: boolean;
+  billingCycle?: BillingCycle;
 }
 
 export interface ServiceRequest {
@@ -74,7 +77,10 @@ export interface ServiceRequest {
   clientId: string;
   clientName: string;
   type: "service";
-  serviceType: ServiceType;
+  serviceId?: string | null;
+  serviceType: ServiceType | string;
+  serviceName?: string | null;
+  serviceIcon?: string | null;
   description: string;
   desiredDate: string;
   status: RequestStatus;
@@ -114,4 +120,53 @@ export interface DashboardMetrics {
   topSupervisors: Array<{ id: string; name: string; clients: number; activeClients: number }>;
   dailyGrowth: number;
   monthlyGrowth: number;
+}
+
+// ── Catálogo dinâmico de serviços ────────────────────────────────────────
+export interface Service {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanServiceRule {
+  id: string;
+  planId: string;
+  serviceId: string;
+  serviceName: string;
+  serviceSlug: string;
+  serviceIcon: string | null;
+  serviceIsActive: boolean;
+  maxPerMonth: number;
+  maxPerYear: number;
+  coverageLimit: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Notificações ──────────────────────────────────────────────────────────
+export type NotificationType =
+  | "request_opened"
+  | "request_updated"
+  | "request_closed"
+  | "payment_overdue";
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  metadata: Record<string, unknown> | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface NotificationListResponse {
+  items: Notification[];
+  total: number;
+  unreadCount: number;
 }

@@ -36,9 +36,29 @@ export default function SupervisorDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Total de Clientes" value={stats.total} icon={<Users size={22} />} colorClass="text-brand-600" />
         <MetricCard title="Clientes Ativos" value={stats.active} icon={<UserCheck size={22} />} colorClass="text-emerald-600" />
-        <MetricCard title="Inadimplentes" value={stats.defaulter} icon={<AlertCircle size={22} />} colorClass="text-red-500" />
+        <MetricCard
+          title="Inadimplentes"
+          value={stats.defaulter}
+          subtitle={stats.total > 0 ? `${stats.defaulterRate.toFixed(1).replace(".", ",")}% da carteira` : "—"}
+          icon={<AlertCircle size={22} />}
+          colorClass="text-red-500"
+        />
         <MetricCard title="Comissão Estimada" value={formatCurrency(monthlyCommission)} subtitle="10% sobre ativos" icon={<TrendingUp size={22} />} colorClass="text-violet-600" />
       </div>
+
+      {stats.total > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-700">
+            <Users size={18} />
+          </div>
+          <p className="text-sm text-slate-600">
+            <strong className="text-slate-900">{user?.name?.split(" ")[0] ?? "Você"}</strong> →{" "}
+            <strong className="text-slate-900">{stats.total} cliente{stats.total === 1 ? "" : "s"}</strong> →{" "}
+            <strong className="text-red-600">{stats.defaulter} inadimplente{stats.defaulter === 1 ? "" : "s"}</strong>{" "}
+            <span className="text-slate-500">({stats.defaulterRate.toFixed(1).replace(".", ",")}%)</span>
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
         <h2 className="text-sm font-semibold text-slate-700 mb-4">Distribuição de Status</h2>

@@ -12,6 +12,7 @@ export interface ClientStats {
   active: number;
   defaulter: number;
   inactive: number;
+  defaulterRate: number;
 }
 
 export interface UseSupervisorDashboardReturn {
@@ -23,6 +24,11 @@ export interface UseSupervisorDashboardReturn {
 }
 
 const COMMISSION_RATE = 0.1;
+
+function rate(part: number, total: number): number {
+  if (total === 0) return 0;
+  return Number(((part / total) * 100).toFixed(2));
+}
 
 export function useSupervisorDashboard(): UseSupervisorDashboardReturn {
   const { user } = useAuth();
@@ -40,12 +46,19 @@ export function useSupervisorDashboard(): UseSupervisorDashboardReturn {
 
   const isLoading = loadingClients || loadingPlans;
 
-  const stats = useMemo((): ClientStats => ({
-    total: clients.length,
-    active: clients.filter((c) => c.status === "active").length,
-    defaulter: clients.filter((c) => c.status === "defaulter").length,
-    inactive: clients.filter((c) => c.status === "inactive").length,
-  }), [clients]);
+  const stats = useMemo((): ClientStats => {
+    const total = clients.length;
+    const active = clients.filter((c) => c.status === "active").length;
+    const defaulter = clients.filter((c) => c.status === "defaulter").length;
+    const inactive = clients.filter((c) => c.status === "inactive").length;
+    return {
+      total,
+      active,
+      defaulter,
+      inactive,
+      defaulterRate: rate(defaulter, total),
+    };
+  }, [clients]);
 
   const monthlyCommission = useMemo(() => {
     return clients

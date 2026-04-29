@@ -3,11 +3,11 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 import {
   Users, UserCheck, TrendingUp, AlertCircle, FileText,
-  Shield, DollarSign, BarChart3, Award,
+  Shield, DollarSign, BarChart3, Award, Wrench, TrendingDown,
 } from "lucide-react";
 import { MetricCard } from "@/components/features/MetricCard";
 import { StatusBadge } from "@/components/features/StatusBadge";
-import { formatCurrency, getRequestStatusConfig } from "@/lib/utils";
+import { formatCurrency, getRequestStatusConfig, getServiceTypeLabel } from "@/lib/utils";
 import { useAdminDashboard } from "@/application/usecases/admin/useAdminDashboard";
 
 export default function AdminDashboardPage() {
@@ -39,7 +39,13 @@ export default function AdminDashboardPage() {
         <MetricCard title="Clientes Ativos" value={metrics.active}
           subtitle={clients.length > 0 ? `${Math.round((metrics.active / clients.length) * 100)}% do total` : "0%"}
           icon={<UserCheck size={22} />} colorClass="text-emerald-600" />
-        <MetricCard title="Inadimplentes" value={metrics.defaulter} icon={<AlertCircle size={22} />} colorClass="text-red-500" />
+        <MetricCard
+          title="Inadimplentes"
+          value={metrics.defaulter}
+          subtitle={clients.length > 0 ? `${metrics.defaulterRate.toFixed(1).replace(".", ",")}% do total` : "—"}
+          icon={<AlertCircle size={22} />}
+          colorClass="text-red-500"
+        />
         <MetricCard title="Receita Mensal" value={formatCurrency(metrics.revenue)} icon={<DollarSign size={22} />} colorClass="text-violet-600" />
       </div>
 
@@ -94,11 +100,74 @@ export default function AdminDashboardPage() {
                   }`}>{index + 1}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate">{sup.name}</p>
-                    <p className="text-xs text-slate-500">{sup.totalClients} clientes · {sup.activeClients} ativos</p>
+                    <p className="text-xs text-slate-500">
+                      {sup.totalClients} clientes · {sup.activeClients} ativos ·{" "}
+                      <span className={sup.defaulterRate > 10 ? "text-red-600 font-semibold" : ""}>
+                        {sup.defaulterClients} inadimplente{sup.defaulterClients === 1 ? "" : "s"} ({sup.defaulterRate.toFixed(1).replace(".", ",")}%)
+                      </span>
+                    </p>
                   </div>
                   <span className="text-sm font-bold text-brand-600">{sup.activeClients}</span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-900 mb-5 flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-brand-600" /> Uso por Serviço
+          </h2>
+          {metrics.serviceUsage.length === 0 ? (
+            <p className="text-slate-400 text-sm">Nenhum chamado de serviço registrado</p>
+          ) : (
+            <div className="space-y-3">
+              {metrics.serviceUsage.map((row) => {
+                const max = metrics.serviceUsage[0].count || 1;
+                const pct = Math.round((row.count / max) * 100);
+                return (
+                  <div key={row.serviceType}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm font-medium text-slate-700">{getServiceTypeLabel(row.serviceType)}</span>
+                      <span className="text-sm font-bold text-slate-900">{row.count}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
+            <TrendingDown className="w-4 h-4 text-rose-500" /> Resultado por Plano (ano corrente)
+          </h2>
+          <p className="text-xs text-slate-400 mb-5">Receita projetada (12×) menos cobertura aprovada no ano</p>
+          {metrics.lossByPlan.length === 0 ? (
+            <p className="text-slate-400 text-sm">Sem dados</p>
+          ) : (
+            <div className="space-y-3">
+              {metrics.lossByPlan.map((row) => {
+                const positive = row.netResultThisYear >= 0;
+                return (
+                  <div key={row.planId} className="p-3 rounded-xl bg-slate-50">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-slate-700">{row.planName}</span>
+                      <span className={`text-sm font-bold ${positive ? "text-emerald-600" : "text-red-600"}`}>
+                        {formatCurrency(row.netResultThisYear)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Receita mensal: {formatCurrency(row.monthlyRevenue)} · Cobertura aprovada: {formatCurrency(row.approvedCoverageThisYear)}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
