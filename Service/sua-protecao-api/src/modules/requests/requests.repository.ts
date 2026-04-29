@@ -1,15 +1,36 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, RequestStatus, RequestType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   IRequestsRepository,
   ClientForRequest,
   RequestRecord,
+  ServiceRuleEnforcement,
 } from './interfaces/requests-repository.interface';
 import { CreateServiceRequestDto } from './dto/create-service-request.dto';
 import { CreateCoverageRequestDto } from './dto/create-coverage-request.dto';
 import { UpdateRequestDto } from './dto/update-request.dto';
 import { RequestResponseDto } from './dto/request-response.dto';
+
+type PrismaRequestWithService = {
+  id: string;
+  clientId: string;
+  clientName: string;
+  type: RequestType;
+  description: string;
+  status: RequestStatus;
+  adminNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  serviceType: string | null;
+  serviceId: string | null;
+  desiredDate: Date | null;
+  coverageType: string | null;
+  estimatedLoss: { toString(): string } | null;
+  approvedAmount: { toString(): string } | null;
+  evidenceUrls: string[];
+  service?: { name: string; slug: string; icon: string | null } | null;
+};
 
 @Injectable()
 export class RequestsRepository implements IRequestsRepository {
@@ -19,34 +40,72 @@ export class RequestsRepository implements IRequestsRepository {
     return this.prisma.client.findUnique({
       where: { id: clientId },
       include: {
-        plan: { select: { servicesPerMonth: true, coverageLimit: true } },
+        plan: { select: { coverageLimit: true } },
         user: { include: { profile: true } },
+        supervisor: { include: { user: { include: { profile: true } } } },
       },
     });
+  }
+
+  async sumApprovedCoverageThisYear(clientId: string): Promise<number> {
+    const yearStart = new Date(new Date().getFullYear(), 0, 1);
+    const result = await this.prisma.request.aggregate({
+      where: {
+        clientId,
+        type: RequestType.coverage,
+        status: RequestStatus.approved,
+        createdAt: { gte: yearStart },
+      },
+      _sum: { approvedAmount: true },
+    });
+    return Number(result._sum.approvedAmount ?? 0);
   }
 
   async createServiceRequest(
     dto: CreateServiceRequestDto,
     clientId: string,
     clientName: string,
-    servicesPerMonth: number,
+    rule: ServiceRuleEnforcement,
   ): Promise<RequestResponseDto> {
     try {
       const request = await this.prisma.$transaction(
         async (tx) => {
-          // Re-leitura dentro da transação — SSI detecta conflito se outro TX já incrementou
-          const fresh = await tx.client.findUnique({
-            where: { id: clientId },
-            select: { servicesUsedThisMonth: true },
-          });
-          if (
-            servicesPerMonth !== -1 &&
-            fresh!.servicesUsedThisMonth >= servicesPerMonth
-          ) {
-            throw new ForbiddenException(
-              'Limite de serviços do mês atingido para o plano contratado.',
-            );
+          const now = new Date();
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const yearStart = new Date(now.getFullYear(), 0, 1);
+
+          if (rule.maxPerMonth !== -1) {
+            const usedMonth = await tx.request.count({
+              where: {
+                clientId,
+                serviceId: rule.serviceId,
+                type: RequestType.service,
+                createdAt: { gte: monthStart },
+              },
+            });
+            if (usedMonth >= rule.maxPerMonth) {
+              throw new ForbiddenException(
+                `Limite mensal de ${rule.maxPerMonth} chamado(s) atingido para este serviço.`,
+              );
+            }
           }
+
+          if (rule.maxPerYear !== -1) {
+            const usedYear = await tx.request.count({
+              where: {
+                clientId,
+                serviceId: rule.serviceId,
+                type: RequestType.service,
+                createdAt: { gte: yearStart },
+              },
+            });
+            if (usedYear >= rule.maxPerYear) {
+              throw new ForbiddenException(
+                `Limite anual de ${rule.maxPerYear} chamado(s) atingido para este serviço.`,
+              );
+            }
+          }
+
           const newRequest = await tx.request.create({
             data: {
               clientId,
@@ -54,25 +113,28 @@ export class RequestsRepository implements IRequestsRepository {
               type: RequestType.service,
               description: dto.description,
               status: RequestStatus.pending,
-              serviceType: dto.serviceType,
+              serviceId: rule.serviceId,
               desiredDate: new Date(dto.desiredDate),
             },
+            include: { service: { select: { name: true, slug: true, icon: true } } },
           });
+
+          // Mantém contador agregado do cliente (usado por dashboards de compat)
           await tx.client.update({
             where: { id: clientId },
             data: { servicesUsedThisMonth: { increment: 1 } },
           });
+
           return newRequest;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
       return this.mapRequest(request);
     } catch (error) {
-      // P2034 = serialization failure — transação concorrente ganhou a corrida
       const e = error as { code?: string };
       if (e.code === 'P2034') {
         throw new ForbiddenException(
-          'Limite de serviços do mês atingido para o plano contratado.',
+          'Conflito ao registrar o chamado. Tente novamente.',
         );
       }
       throw error;
@@ -102,20 +164,25 @@ export class RequestsRepository implements IRequestsRepository {
   async findAll(): Promise<RequestResponseDto[]> {
     const requests = await this.prisma.request.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { service: { select: { name: true, slug: true, icon: true } } },
     });
-    return requests.map(this.mapRequest);
+    return requests.map((r) => this.mapRequest(r));
   }
 
   async findByClientId(clientId: string): Promise<RequestResponseDto[]> {
     const requests = await this.prisma.request.findMany({
       where: { clientId },
       orderBy: { createdAt: 'desc' },
+      include: { service: { select: { name: true, slug: true, icon: true } } },
     });
-    return requests.map(this.mapRequest);
+    return requests.map((r) => this.mapRequest(r));
   }
 
   async findById(id: string): Promise<RequestResponseDto | null> {
-    const request = await this.prisma.request.findUnique({ where: { id } });
+    const request = await this.prisma.request.findUnique({
+      where: { id },
+      include: { service: { select: { name: true, slug: true, icon: true } } },
+    });
     return request ? this.mapRequest(request) : null;
   }
 
@@ -136,27 +203,12 @@ export class RequestsRepository implements IRequestsRepository {
           approvedAmount: dto.approvedAmount,
         }),
       },
+      include: { service: { select: { name: true, slug: true, icon: true } } },
     });
     return this.mapRequest(updated);
   }
 
-  private mapRequest(request: {
-    id: string;
-    clientId: string;
-    clientName: string;
-    type: RequestType;
-    description: string;
-    status: RequestStatus;
-    adminNotes: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    serviceType: string | null;
-    desiredDate: Date | null;
-    coverageType: string | null;
-    estimatedLoss: { toString(): string } | null;
-    approvedAmount: { toString(): string } | null;
-    evidenceUrls: string[];
-  }): RequestResponseDto {
+  private mapRequest(request: PrismaRequestWithService): RequestResponseDto {
     return {
       id: request.id,
       clientId: request.clientId,
@@ -165,7 +217,11 @@ export class RequestsRepository implements IRequestsRepository {
       description: request.description,
       status: request.status,
       adminNotes: request.adminNotes,
-      serviceType: request.serviceType,
+      serviceId: request.serviceId,
+      // Para retrocompat, expõe slug em serviceType (consumidores antigos esperavam essa string)
+      serviceType: request.service?.slug ?? request.serviceType,
+      serviceName: request.service?.name ?? null,
+      serviceIcon: request.service?.icon ?? null,
       desiredDate: request.desiredDate,
       coverageType: request.coverageType,
       estimatedLoss: request.estimatedLoss ? Number(request.estimatedLoss) : null,

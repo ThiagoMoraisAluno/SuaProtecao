@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -8,19 +9,20 @@ import { UsersModule } from './modules/users/users.module';
 import { SupervisorsModule } from './modules/supervisors/supervisors.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { PlansModule } from './modules/plans/plans.module';
+import { ServicesModule } from './modules/services/services.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { BillingModule } from './modules/billing/billing.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    ScheduleModule.forRoot(),
 
-    // H1: rate limiting global + throttlers nomeados aplicados nos controllers
     ThrottlerModule.forRoot([
       { name: 'global', ttl: 60000, limit: 100 },
-      // login: 5 tentativas/min por IP
       { name: 'login', ttl: 60000, limit: 5 },
-      // strict: 3 req/min por IP — registro e reset de senha
       { name: 'strict', ttl: 60000, limit: 3 },
     ]),
 
@@ -30,12 +32,12 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     SupervisorsModule,
     ClientsModule,
     PlansModule,
+    ServicesModule,
     RequestsModule,
     DashboardModule,
+    NotificationsModule,
+    BillingModule,
   ],
-  providers: [
-    // Aplica ThrottlerGuard globalmente em todos os endpoints
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

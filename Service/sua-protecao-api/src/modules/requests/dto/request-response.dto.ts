@@ -8,7 +8,10 @@ export type RequestResponseDto = {
   description: string;
   status: RequestStatus;
   adminNotes: string | null;
+  serviceId: string | null;
   serviceType: string | null;
+  serviceName: string | null;
+  serviceIcon: string | null;
   desiredDate: Date | null;
   coverageType: string | null;
   estimatedLoss: number | null;

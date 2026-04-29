@@ -2,8 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   Patch,
   Post,
@@ -34,7 +32,7 @@ export class RequestsController {
     @Body() dto: CreateServiceRequestDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.requestsService.create(dto, user);
+    return this.requestsService.createService(dto, user);
   }
 
   @Post('coverage')
@@ -44,7 +42,7 @@ export class RequestsController {
     @Body() dto: CreateCoverageRequestDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.requestsService.create(dto, user);
+    return this.requestsService.createCoverage(dto, user);
   }
 
   @Get()

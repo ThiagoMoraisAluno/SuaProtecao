@@ -1,11 +1,10 @@
-import { IsDateString, IsEnum, IsString, MinLength } from 'class-validator';
-import { ServiceType } from '@prisma/client';
+import { IsDateString, IsString, IsUUID, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateServiceRequestDto {
-  @ApiProperty({ enum: ServiceType })
-  @IsEnum(ServiceType)
-  serviceType!: ServiceType;
+  @ApiProperty({ description: 'ID do serviço (catálogo dinâmico)' })
+  @IsUUID()
+  serviceId!: string;
 
   @ApiProperty({ minLength: 10 })
   @IsString()

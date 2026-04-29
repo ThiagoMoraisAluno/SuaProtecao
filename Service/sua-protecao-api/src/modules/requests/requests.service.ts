@@ -3,9 +3,15 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ClientStatus, RequestStatus, RequestType } from '@prisma/client';
+import {
+  ClientStatus,
+  NotificationType,
+  RequestStatus,
+  RequestType,
+} from '@prisma/client';
 import { CreateServiceRequestDto } from './dto/create-service-request.dto';
 import { CreateCoverageRequestDto } from './dto/create-coverage-request.dto';
 import { UpdateRequestDto } from './dto/update-request.dto';
@@ -15,6 +21,9 @@ import {
   REQUESTS_REPOSITORY_TOKEN,
 } from './interfaces/requests-repository.interface';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import { PlanRulesService } from '../plans/plan-rules.service';
+import { ServicesService } from '../services/services.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const SERVICE_VALID_TRANSITIONS: Record<string, RequestStatus[]> = {
   [RequestStatus.pending]: [RequestStatus.in_progress],
@@ -28,17 +37,20 @@ const COVERAGE_VALID_TRANSITIONS: Record<string, RequestStatus[]> = {
   [RequestStatus.denied]: [],
 };
 
-type CreateRequestDto = CreateServiceRequestDto | CreateCoverageRequestDto;
-
 @Injectable()
 export class RequestsService {
+  private readonly logger = new Logger(RequestsService.name);
+
   constructor(
     @Inject(REQUESTS_REPOSITORY_TOKEN)
     private readonly requestsRepository: IRequestsRepository,
+    private readonly planRulesService: PlanRulesService,
+    private readonly servicesService: ServicesService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
-  async create(
-    dto: CreateRequestDto,
+  async createService(
+    dto: CreateServiceRequestDto,
     requester: JwtPayload,
   ): Promise<RequestResponseDto> {
     const client = await this.requestsRepository.findClientForRequest(
@@ -52,38 +64,104 @@ export class RequestsService {
       );
     }
 
-    const clientName = client.user.profile?.username ?? '';
+    const desired = new Date(dto.desiredDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (desired < today) {
+      throw new BadRequestException('A data desejada não pode ser no passado.');
+    }
 
-    if ('serviceType' in dto) {
-      const desired = new Date(dto.desiredDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (desired < today) {
-        throw new BadRequestException('A data desejada não pode ser no passado.');
-      }
-
-      // Verificação final de limite é feita atomicamente dentro da transação
-      return this.requestsRepository.createServiceRequest(
-        dto,
-        client.id,
-        clientName,
-        client.plan.servicesPerMonth,
+    const service = await this.servicesService.findOne(dto.serviceId);
+    if (!service.isActive) {
+      throw new BadRequestException(
+        'Este serviço está temporariamente indisponível.',
       );
     }
 
-    const coverageDto = dto as CreateCoverageRequestDto;
+    const rule = await this.planRulesService.findEnforcement(
+      client.planId,
+      dto.serviceId,
+    );
+    if (!rule) {
+      throw new ForbiddenException('Serviço não coberto pelo seu plano.');
+    }
+
+    const clientName = client.user.profile?.username ?? '';
+
+    const created = await this.requestsRepository.createServiceRequest(
+      dto,
+      client.id,
+      clientName,
+      {
+        serviceId: rule.serviceId,
+        maxPerMonth: rule.maxPerMonth,
+        maxPerYear: rule.maxPerYear,
+        coverageLimit: rule.coverageLimit,
+      },
+    );
+
+    await this.dispatchRequestOpenedNotifications(
+      created,
+      client.id,
+      client.supervisorId,
+      clientName,
+      service.name,
+      client.supervisor?.user.profile?.username ?? null,
+    );
+
+    return created;
+  }
+
+  async createCoverage(
+    dto: CreateCoverageRequestDto,
+    requester: JwtPayload,
+  ): Promise<RequestResponseDto> {
+    const client = await this.requestsRepository.findClientForRequest(
+      requester.sub,
+    );
+    if (!client) throw new NotFoundException('Cliente não encontrado.');
+
+    if (client.status === ClientStatus.defaulter) {
+      throw new ForbiddenException(
+        'Clientes inadimplentes não podem abrir chamados.',
+      );
+    }
+
     const coverageLimit = client.plan.coverageLimit.toNumber();
-    if (coverageDto.estimatedLoss > coverageLimit) {
+    if (dto.estimatedLoss > coverageLimit) {
       throw new BadRequestException(
         `Valor estimado excede o limite de cobertura do plano (R$ ${coverageLimit.toFixed(2)}).`,
       );
     }
 
-    return this.requestsRepository.createCoverageRequest(
-      coverageDto,
+    // Limite anual: soma de coberturas já aprovadas no ano + valor estimado
+    const usedThisYear =
+      await this.requestsRepository.sumApprovedCoverageThisYear(client.id);
+    if (usedThisYear + dto.estimatedLoss > coverageLimit) {
+      const remaining = Math.max(0, coverageLimit - usedThisYear);
+      throw new BadRequestException(
+        `Limite anual de cobertura excedido. Já utilizado: R$ ${usedThisYear.toFixed(2)} ` +
+          `de R$ ${coverageLimit.toFixed(2)}. Saldo disponível: R$ ${remaining.toFixed(2)}.`,
+      );
+    }
+
+    const clientName = client.user.profile?.username ?? '';
+    const created = await this.requestsRepository.createCoverageRequest(
+      dto,
       client.id,
       clientName,
     );
+
+    await this.dispatchRequestOpenedNotifications(
+      created,
+      client.id,
+      client.supervisorId,
+      clientName,
+      'Cobertura',
+      client.supervisor?.user.profile?.username ?? null,
+    );
+
+    return created;
   }
 
   async findAll(requester: JwtPayload): Promise<RequestResponseDto[]> {
@@ -127,5 +205,56 @@ export class RequestsService {
     }
 
     return this.requestsRepository.update(id, dto);
+  }
+
+  /**
+   * Envia notificações ao Supervisor responsável, a todos os Masters/Admins
+   * e ao próprio Cliente após a criação de um chamado.
+   * Falhas no envio não bloqueiam o fluxo principal — apenas são logadas.
+   */
+  private async dispatchRequestOpenedNotifications(
+    request: RequestResponseDto,
+    clientUserId: string,
+    supervisorUserId: string | null,
+    clientName: string,
+    serviceLabel: string,
+    supervisorName: string | null,
+  ): Promise<void> {
+    const metadata = {
+      requestId: request.id,
+      clientId: clientUserId,
+      type: request.type,
+    };
+
+    try {
+      if (supervisorUserId) {
+        await this.notificationsService.create({
+          userId: supervisorUserId,
+          type: NotificationType.request_opened,
+          title: 'Novo chamado aberto',
+          body: `O cliente ${clientName} abriu um chamado de ${serviceLabel}.`,
+          metadata,
+        });
+      }
+
+      await this.notificationsService.notifyAllAdmins({
+        type: NotificationType.request_opened,
+        title: `Novo chamado — ${serviceLabel}`,
+        body: `Cliente ${clientName} (Supervisor: ${supervisorName ?? 'sem supervisor'}) abriu um chamado.`,
+        metadata,
+      });
+
+      await this.notificationsService.create({
+        userId: clientUserId,
+        type: NotificationType.request_opened,
+        title: 'Chamado aberto com sucesso',
+        body: 'Seu chamado foi aberto com sucesso. Em até 24h um profissional será enviado. Em caso de urgência, entre em contato via WhatsApp.',
+        metadata,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Falha ao enviar notificações do chamado ${request.id}: ${(error as Error).message}`,
+      );
+    }
   }
 }

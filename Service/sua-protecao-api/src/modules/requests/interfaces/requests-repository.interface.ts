@@ -8,8 +8,11 @@ export interface ClientForRequest {
   id: string;
   status: ClientStatus;
   servicesUsedThisMonth: number;
-  plan: { servicesPerMonth: number; coverageLimit: { toNumber(): number } };
+  planId: string;
+  supervisorId: string | null;
+  plan: { coverageLimit: { toNumber(): number } };
   user: { profile: { username: string } | null };
+  supervisor: { user: { profile: { username: string } | null } } | null;
 }
 
 export interface RequestRecord {
@@ -19,13 +22,21 @@ export interface RequestRecord {
   clientId: string;
 }
 
+export interface ServiceRuleEnforcement {
+  serviceId: string;
+  maxPerMonth: number;
+  maxPerYear: number;
+  coverageLimit: number;
+}
+
 export interface IRequestsRepository {
   findClientForRequest(clientId: string): Promise<ClientForRequest | null>;
+  sumApprovedCoverageThisYear(clientId: string): Promise<number>;
   createServiceRequest(
     dto: CreateServiceRequestDto,
     clientId: string,
     clientName: string,
-    servicesPerMonth: number,
+    rule: ServiceRuleEnforcement,
   ): Promise<RequestResponseDto>;
   createCoverageRequest(
     dto: CreateCoverageRequestDto,
