@@ -95,14 +95,39 @@ export default function ClientDashboardPage() {
       {isBlocked && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-5 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-semibold text-red-800">Conta com pagamento pendente</p>
-            <p className="text-sm text-red-700 mt-1">Novas solicitações estão bloqueadas. Entre em contato para regularizar.</p>
-            <a href={WHATSAPP_URL} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-2 mt-3 bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-700 transition-colors">
-              <Phone size={16} /> Falar com suporte
-            </a>
+            <p className="text-sm text-red-700 mt-1">Novas solicitações estão bloqueadas. Regularize o pagamento ou fale com o suporte.</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <Link
+                href="/client/checkout"
+                className="inline-flex items-center gap-2 bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-700 transition-colors"
+              >
+                Pagar agora
+              </Link>
+              <a href={WHATSAPP_URL} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 bg-white border border-red-200 text-red-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-50 transition-colors">
+                <Phone size={16} /> Suporte
+              </a>
+            </div>
           </div>
+        </div>
+      )}
+
+      {!isBlocked && plan && (
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/client/checkout"
+            className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-300 text-sm font-semibold text-slate-700 px-4 py-2 rounded-xl transition-colors"
+          >
+            Pagar mensalidade
+          </Link>
+          <Link
+            href="/client/payments"
+            className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-300 text-sm font-semibold text-slate-700 px-4 py-2 rounded-xl transition-colors"
+          >
+            Histórico de pagamentos
+          </Link>
         </div>
       )}
 

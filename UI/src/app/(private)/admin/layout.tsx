@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  LayoutDashboard, Users, UserCheck, FileText, CreditCard, Shield, Wrench,
+  LayoutDashboard, Users, UserCheck, FileText, CreditCard, Shield, Wrench, Banknote,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 
@@ -12,6 +12,7 @@ const navItems = [
   { path: "/admin/requests",    label: "Chamados",     icon: FileText },
   { path: "/admin/plans",       label: "Planos",       icon: CreditCard },
   { path: "/admin/services",    label: "Serviços",     icon: Wrench },
+  { path: "/admin/payments",    label: "Pagamentos",   icon: Banknote },
 ];
 
 const badge = {

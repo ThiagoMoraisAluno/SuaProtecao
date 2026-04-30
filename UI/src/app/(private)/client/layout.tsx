@@ -1,12 +1,13 @@
 "use client";
 
-import { LayoutDashboard, FileText, PlusCircle, Shield } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, Shield, CreditCard } from "lucide-react";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 
 const navItems = [
   { path: "/client/dashboard",              label: "Meu Plano",     icon: LayoutDashboard },
   { path: "/client/requests",               label: "Meus Chamados", icon: FileText },
   { path: "/client/requests/new/service",   label: "Novo Chamado",  icon: PlusCircle },
+  { path: "/client/payments",               label: "Pagamentos",    icon: CreditCard },
 ];
 
 const badge = {

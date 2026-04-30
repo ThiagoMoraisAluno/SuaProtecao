@@ -25,6 +25,7 @@ type NewPlanForm = {
   features: string;
   color: string;
   billingCycle: BillingCycle;
+  annualDiscount: string;
   popular: boolean;
 };
 
@@ -37,6 +38,7 @@ const EMPTY_NEW_PLAN: NewPlanForm = {
   features: "",
   color: "brand",
   billingCycle: "monthly",
+  annualDiscount: "0",
   popular: false,
 };
 
@@ -119,6 +121,8 @@ export default function AdminPlansPage() {
       features,
       color: newPlan.color,
       billingCycle: newPlan.billingCycle,
+      annualDiscount:
+        newPlan.billingCycle === "annual" ? Number(newPlan.annualDiscount) : 0,
       popular: newPlan.popular,
     });
   };
@@ -243,6 +247,37 @@ export default function AdminPlansPage() {
                     </span>
                   )}
                 </div>
+
+                {(isEditing
+                  ? (editForm.billingCycle ?? plan.billingCycle) === "annual"
+                  : plan.billingCycle === "annual") && (
+                  <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                    <span className="text-sm font-medium text-emerald-800">Desconto anual</span>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={editForm.annualDiscount ?? plan.annualDiscount ?? 0}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              annualDiscount: Number(e.target.value),
+                            })
+                          }
+                          className="text-sm font-bold border border-emerald-200 rounded-lg px-2 py-1 w-20 text-right focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <span className="text-xs text-emerald-700">%</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-bold text-emerald-700">
+                        {(plan.annualDiscount ?? 0).toFixed(1).replace(".", ",")}%
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <p className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Inclui</p>
@@ -379,6 +414,45 @@ export default function AdminPlansPage() {
                     <option value="annual">Anual</option>
                   </select>
                 </div>
+
+                {newPlan.billingCycle === "annual" && (
+                  <div className="col-span-2">
+                    <label className="form-label">Desconto anual (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={newPlan.annualDiscount}
+                      onChange={(e) =>
+                        setNewPlan({ ...newPlan, annualDiscount: e.target.value })
+                      }
+                      className="form-input"
+                      required
+                    />
+                    {newPlan.price && Number(newPlan.annualDiscount) > 0 && (
+                      <p className="text-xs text-emerald-700 mt-1.5">
+                        Preço anual final:{" "}
+                        <strong>
+                          R${" "}
+                          {(
+                            Number(newPlan.price) *
+                            12 *
+                            (1 - Number(newPlan.annualDiscount) / 100)
+                          ).toFixed(2)}
+                        </strong>
+                        {" — "}
+                        economia de R${" "}
+                        {(
+                          Number(newPlan.price) *
+                          12 *
+                          (Number(newPlan.annualDiscount) / 100)
+                        ).toFixed(2)}{" "}
+                        por ano
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="form-label">Serviços/mês (-1 = ilimitado)</label>

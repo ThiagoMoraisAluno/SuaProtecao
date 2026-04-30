@@ -2,65 +2,11 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Check, Sparkles, ArrowUpRight } from "lucide-react";
-
-type Plan = {
-  name: string;
-  price: string;
-  period: string;
-  description: string;
-  features: string[];
-  cta: string;
-  highlighted?: boolean;
-};
-
-const PLANS: Plan[] = [
-  {
-    name: "Básico",
-    price: "R$ 49,99",
-    period: "/mês",
-    description: "Para quem precisa do essencial em manutenção e cobertura.",
-    features: [
-      "1 serviço por mês",
-      "Cobertura até R$20.000",
-      "Suporte por app",
-      "Profissionais verificados",
-      "Sem fidelidade",
-    ],
-    cta: "Assinar plano Básico",
-  },
-  {
-    name: "Intermediário",
-    price: "R$ 99,90",
-    period: "/mês",
-    description: "O plano mais escolhido pelas famílias brasileiras.",
-    features: [
-      "2 serviços por mês",
-      "Cobertura até R$40.000",
-      "Suporte prioritário",
-      "Relatório mensal",
-      "Atendimento em até 4h",
-      "Sem fidelidade",
-    ],
-    cta: "Assinar agora",
-    highlighted: true,
-  },
-  {
-    name: "Premium",
-    price: "R$ 169,90",
-    period: "/mês",
-    description: "Para uma proteção completa com atendimento prioritário.",
-    features: [
-      "Serviços ilimitados",
-      "Cobertura até R$80.000",
-      "Suporte VIP 24/7",
-      "Relatório + consultoria",
-      "Atendimento emergencial",
-      "Gestor dedicado",
-    ],
-    cta: "Assinar plano Premium",
-  },
-];
+import { Check, Sparkles, ArrowUpRight, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { plansService } from "@/services/plans.service";
+import { formatCurrency } from "@/lib/utils";
+import type { Plan } from "@/types";
 
 const containerVariants = {
   hidden: {},
@@ -76,7 +22,43 @@ const itemVariants = {
   },
 };
 
+interface DisplayPlan {
+  plan: Plan;
+  isHighlighted: boolean;
+  isAnnual: boolean;
+  monthlyEquivalent: number;
+  finalAnnual: number;
+  grossAnnual: number;
+  savings: number;
+}
+
+function buildDisplayPlan(plan: Plan): DisplayPlan {
+  const isAnnual = plan.billingCycle === "annual";
+  const annualDiscount = plan.annualDiscount ?? 0;
+  const grossAnnual = plan.price * 12;
+  const finalAnnual = isAnnual
+    ? Number((grossAnnual * (1 - annualDiscount / 100)).toFixed(2))
+    : grossAnnual;
+  const monthlyEquivalent = isAnnual ? finalAnnual / 12 : plan.price;
+  return {
+    plan,
+    isHighlighted: !!plan.popular,
+    isAnnual,
+    monthlyEquivalent,
+    finalAnnual,
+    grossAnnual,
+    savings: isAnnual ? grossAnnual - finalAnnual : 0,
+  };
+}
+
 export function Pricing() {
+  const { data: plans = [], isLoading } = useQuery({
+    queryKey: ["public-plans"],
+    queryFn: () => plansService.findAll(),
+  });
+
+  const display = plans.map(buildDisplayPlan);
+
   return (
     <section id="planos" className="bg-slate-50 py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 md:px-8">
@@ -99,109 +81,165 @@ export function Pricing() {
           </p>
         </motion.div>
 
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          className="mt-14 grid gap-6 lg:grid-cols-3 lg:items-stretch"
-        >
-          {PLANS.map((plan) => {
-            const isHighlighted = plan.highlighted;
-            return (
-              <motion.article
-                key={plan.name}
-                variants={itemVariants}
-                className={`relative flex flex-col rounded-3xl p-8 transition-transform duration-500 ${
-                  isHighlighted
-                    ? "bg-navy-950 text-white shadow-2xl shadow-navy-950/40 lg:-mt-6 lg:scale-[1.04]"
-                    : "border border-slate-200 bg-white text-slate-900 shadow-[0_4px_22px_-12px_rgba(15,20,96,0.12)]"
-                }`}
-              >
-                {isHighlighted && (
-                  <span className="absolute -top-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-brand-500 px-4 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg shadow-brand-500/40">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Mais Popular
-                  </span>
-                )}
-
-                <h3
-                  className={`font-display text-2xl font-bold ${
-                    isHighlighted ? "text-white" : "text-slate-900"
+        {isLoading ? (
+          <div className="mt-14 flex justify-center">
+            <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+          </div>
+        ) : (
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            className="mt-14 grid gap-6 lg:grid-cols-3 lg:items-stretch"
+          >
+            {display.map((d) => {
+              const { plan, isHighlighted, isAnnual } = d;
+              return (
+                <motion.article
+                  key={plan.id}
+                  variants={itemVariants}
+                  className={`relative flex flex-col rounded-3xl p-8 transition-transform duration-500 ${
+                    isHighlighted
+                      ? "bg-navy-950 text-white shadow-2xl shadow-navy-950/40 lg:-mt-6 lg:scale-[1.04]"
+                      : "border border-slate-200 bg-white text-slate-900 shadow-[0_4px_22px_-12px_rgba(15,20,96,0.12)]"
                   }`}
                 >
-                  {plan.name}
-                </h3>
-                <p
-                  className={`mt-2 text-sm leading-relaxed ${
-                    isHighlighted ? "text-white/70" : "text-slate-500"
-                  }`}
-                >
-                  {plan.description}
-                </p>
+                  {isHighlighted && (
+                    <span className="absolute -top-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-brand-500 px-4 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg shadow-brand-500/40">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Mais Popular
+                    </span>
+                  )}
 
-                <div className="mt-6 flex items-baseline gap-1.5">
-                  <span
-                    className={`font-display text-4xl font-bold tracking-tight md:text-5xl ${
+                  {isAnnual && (
+                    <span
+                      className={`absolute -top-3 right-6 inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider shadow-lg ${
+                        isHighlighted
+                          ? "bg-emerald-400 text-emerald-950 shadow-emerald-400/40"
+                          : "bg-emerald-500 text-white shadow-emerald-500/40"
+                      }`}
+                    >
+                      Anual · -{(plan.annualDiscount ?? 0).toFixed(0)}%
+                    </span>
+                  )}
+
+                  <h3
+                    className={`font-display text-2xl font-bold ${
                       isHighlighted ? "text-white" : "text-slate-900"
                     }`}
                   >
-                    {plan.price}
-                  </span>
-                  <span
-                    className={`text-sm font-medium ${
-                      isHighlighted ? "text-white/60" : "text-slate-500"
+                    {plan.name}
+                  </h3>
+                  <p
+                    className={`mt-2 text-sm leading-relaxed ${
+                      isHighlighted ? "text-white/70" : "text-slate-500"
                     }`}
                   >
-                    {plan.period}
-                  </span>
-                </div>
+                    {plan.servicesPerMonth === -1
+                      ? "Serviços ilimitados, cobertura completa."
+                      : `${plan.servicesPerMonth} serviço${plan.servicesPerMonth === 1 ? "" : "s"} por mês com cobertura inclusa.`}
+                  </p>
 
-                <ul
-                  className={`mt-8 flex flex-col gap-3 border-y py-6 ${
-                    isHighlighted ? "border-white/10" : "border-slate-100"
-                  }`}
-                >
-                  {plan.features.map((feature) => (
-                    <li
-                      key={feature}
-                      className={`flex items-start gap-3 text-sm ${
-                        isHighlighted ? "text-white/85" : "text-slate-700"
-                      }`}
-                    >
-                      <span
-                        className={`mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full ${
-                          isHighlighted
-                            ? "bg-brand-500/20 text-brand-300"
-                            : "bg-navy-50 text-navy-700"
+                  {isAnnual ? (
+                    <div className="mt-6">
+                      <p
+                        className={`text-sm line-through ${
+                          isHighlighted ? "text-white/40" : "text-slate-400"
                         }`}
                       >
-                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                        {formatCurrency(d.grossAnnual)} no total
+                      </p>
+                      <div className="flex items-baseline gap-1.5">
+                        <span
+                          className={`font-display text-4xl font-bold tracking-tight md:text-5xl ${
+                            isHighlighted ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          {formatCurrency(d.monthlyEquivalent)}
+                        </span>
+                        <span
+                          className={`text-sm font-medium ${
+                            isHighlighted ? "text-white/60" : "text-slate-500"
+                          }`}
+                        >
+                          /mês
+                        </span>
+                      </div>
+                      <p
+                        className={`mt-1 text-xs font-medium ${
+                          isHighlighted ? "text-emerald-300" : "text-emerald-700"
+                        }`}
+                      >
+                        Cobrado anualmente — economize{" "}
+                        {formatCurrency(d.savings)}/ano
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-6 flex items-baseline gap-1.5">
+                      <span
+                        className={`font-display text-4xl font-bold tracking-tight md:text-5xl ${
+                          isHighlighted ? "text-white" : "text-slate-900"
+                        }`}
+                      >
+                        {formatCurrency(plan.price)}
                       </span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
+                      <span
+                        className={`text-sm font-medium ${
+                          isHighlighted ? "text-white/60" : "text-slate-500"
+                        }`}
+                      >
+                        /mês
+                      </span>
+                    </div>
+                  )}
 
-                <Link
-                  href="/login"
-                  className={`group relative mt-8 inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold transition-all duration-300 ${
-                    isHighlighted
-                      ? "bg-brand-500 text-white shadow-lg shadow-brand-500/40 hover:bg-brand-400 hover:shadow-xl hover:scale-[1.03]"
-                      : "bg-navy-600 text-white shadow-lg shadow-navy-600/30 hover:bg-navy-700 hover:shadow-xl hover:scale-[1.03]"
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 -translate-x-full skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-500 ease-out group-hover:translate-x-full"
-                  />
-                  <span className="relative">{plan.cta}</span>
-                  <ArrowUpRight className="relative h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                </Link>
-              </motion.article>
-            );
-          })}
-        </motion.div>
+                  <ul
+                    className={`mt-8 flex flex-col gap-3 border-y py-6 ${
+                      isHighlighted ? "border-white/10" : "border-slate-100"
+                    }`}
+                  >
+                    {plan.features.map((feature) => (
+                      <li
+                        key={feature}
+                        className={`flex items-start gap-3 text-sm ${
+                          isHighlighted ? "text-white/85" : "text-slate-700"
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full ${
+                            isHighlighted
+                              ? "bg-brand-500/20 text-brand-300"
+                              : "bg-navy-50 text-navy-700"
+                          }`}
+                        >
+                          <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                        </span>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link
+                    href="/login"
+                    className={`group relative mt-8 inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold transition-all duration-300 ${
+                      isHighlighted
+                        ? "bg-brand-500 text-white shadow-lg shadow-brand-500/40 hover:bg-brand-400 hover:shadow-xl hover:scale-[1.03]"
+                        : "bg-navy-600 text-white shadow-lg shadow-navy-600/30 hover:bg-navy-700 hover:shadow-xl hover:scale-[1.03]"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 -translate-x-full skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-500 ease-out group-hover:translate-x-full"
+                    />
+                    <span className="relative">Assinar plano {plan.name}</span>
+                    <ArrowUpRight className="relative h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </Link>
+                </motion.article>
+              );
+            })}
+          </motion.div>
+        )}
       </div>
     </section>
   );
