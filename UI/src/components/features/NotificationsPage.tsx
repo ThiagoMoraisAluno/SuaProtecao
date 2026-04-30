@@ -15,6 +15,7 @@ const TYPE_META: Record<NotificationType, { icon: string; tone: string; label: s
   request_updated: { icon: "🔄", tone: "text-violet-600", label: "Chamado atualizado" },
   request_closed: { icon: "✅", tone: "text-emerald-600", label: "Chamado encerrado" },
   payment_overdue: { icon: "⚠️", tone: "text-red-600", label: "Pagamento em atraso" },
+  payment_confirmed: { icon: "💳", tone: "text-emerald-600", label: "Pagamento confirmado" },
 };
 
 export function NotificationsPage() {

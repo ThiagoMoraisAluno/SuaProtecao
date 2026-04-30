@@ -16,6 +16,7 @@ const TYPE_LABELS: Record<NotificationType, { icon: string; tone: string }> = {
   request_updated: { icon: "🔄", tone: "text-violet-600" },
   request_closed: { icon: "✅", tone: "text-emerald-600" },
   payment_overdue: { icon: "⚠️", tone: "text-red-600" },
+  payment_confirmed: { icon: "💳", tone: "text-emerald-600" },
 };
 
 function timeAgo(iso: string): string {

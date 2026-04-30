@@ -70,6 +70,8 @@ export interface Plan {
   color: string;
   popular?: boolean;
   billingCycle?: BillingCycle;
+  /** Percentual aplicado quando billingCycle = "annual" (0..100) */
+  annualDiscount?: number;
 }
 
 export interface ServiceRequest {
@@ -148,12 +150,50 @@ export interface PlanServiceRule {
   updatedAt: string;
 }
 
+// ── Pagamentos ────────────────────────────────────────────────────────────
+export type PaymentMethod = "pix" | "boleto" | "credit_card";
+export type PaymentStatus =
+  | "pending"
+  | "confirmed"
+  | "overdue"
+  | "refunded"
+  | "cancelled";
+
+export interface Payment {
+  id: string;
+  clientId: string;
+  clientName: string | null;
+  planId: string;
+  planName: string | null;
+  asaasPaymentId: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  amount: number;
+  dueDate: string;
+  paidAt: string | null;
+  installment: number | null;
+  totalInstallments: number | null;
+  pixCode: string | null;
+  pixQrCode: string | null;
+  boletoUrl: string | null;
+  boletoBarCode: string | null;
+  invoiceUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentListResponse {
+  items: Payment[];
+  total: number;
+}
+
 // ── Notificações ──────────────────────────────────────────────────────────
 export type NotificationType =
   | "request_opened"
   | "request_updated"
   | "request_closed"
-  | "payment_overdue";
+  | "payment_overdue"
+  | "payment_confirmed";
 
 export interface Notification {
   id: string;
