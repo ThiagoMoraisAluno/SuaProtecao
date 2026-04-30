@@ -46,6 +46,6 @@ CREATE INDEX "payments_due_date_idx" ON "payments"("due_date");
 CREATE INDEX "payments_client_id_created_at_idx" ON "payments"("client_id", "created_at" DESC);
 
 ALTER TABLE "payments" ADD CONSTRAINT "payments_client_id_fkey"
-  FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  FOREIGN KEY ("client_id") REFERENCES "clients"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "payments" ADD CONSTRAINT "payments_plan_id_fkey"
   FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
