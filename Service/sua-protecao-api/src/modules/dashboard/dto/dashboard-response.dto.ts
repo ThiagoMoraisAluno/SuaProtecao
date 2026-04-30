@@ -37,6 +37,17 @@ export type LossByPlanDto = {
   netResultThisYear: number;
 };
 
+export type RevenueSummaryDto = {
+  /** Faturamento confirmado no mês corrente (payments status=confirmed) */
+  thisMonth: number;
+  /** Faturamento confirmado no mês anterior */
+  lastMonth: number;
+  /** Faturamento confirmado no ano corrente */
+  thisYear: number;
+  /** Soma de payments overdue ainda em aberto */
+  overdueOpen: number;
+};
+
 export type AdminDashboardDto = {
   totalClients: number;
   activeClients: number;
@@ -46,7 +57,9 @@ export type AdminDashboardDto = {
   totalSupervisors: number;
   openRequests: number;
   pendingCoverage: number;
+  /** @deprecated — use revenue.thisMonth (faturamento real). Mantido para compat. */
   monthlyRevenue: number;
+  revenue: RevenueSummaryDto;
   clientsByPlan: ClientsByPlanDto;
   topSupervisors: TopSupervisorDto[];
   recentRequests: RecentRequestDto[];

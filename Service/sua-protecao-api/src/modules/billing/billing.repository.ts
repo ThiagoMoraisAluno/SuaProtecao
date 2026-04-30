@@ -1,15 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { BillingCycle, ClientStatus } from '@prisma/client';
+import { ClientStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   IBillingRepository,
   OverdueClientRow,
 } from './interfaces/billing-repository.interface';
-
-const CYCLE_DAYS: Record<BillingCycle, number> = {
-  monthly: 30,
-  annual: 365,
-};
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -20,35 +15,39 @@ export class BillingRepository implements IBillingRepository {
   async findOverdueClients(
     gracePeriodDays: number,
   ): Promise<OverdueClientRow[]> {
-    const candidates = await this.prisma.client.findMany({
-      where: { status: ClientStatus.active },
-      include: {
-        plan: { select: { billingCycle: true } },
-        user: { include: { profile: true } },
-        supervisor: { include: { user: { include: { profile: true } } } },
+    const cutoff = new Date(Date.now() - gracePeriodDays * MS_PER_DAY);
+
+    // Pagamentos críticos (já overdue OU pending vencido + graceDays) cujo
+    // cliente ainda está active (defaulters já estão marcados).
+    const overduePayments = await this.prisma.payment.findMany({
+      where: {
+        OR: [
+          { status: PaymentStatus.overdue },
+          {
+            status: PaymentStatus.pending,
+            dueDate: { lt: cutoff },
+          },
+        ],
+        client: { status: ClientStatus.active },
       },
+      include: {
+        client: {
+          include: {
+            user: { include: { profile: true } },
+            supervisor: { include: { user: { include: { profile: true } } } },
+          },
+        },
+      },
+      distinct: ['clientId'],
     });
 
-    const now = Date.now();
-    const overdue: OverdueClientRow[] = [];
-
-    for (const client of candidates) {
-      const reference = client.lastPaymentAt ?? client.joinedAt;
-      const cycleDays = CYCLE_DAYS[client.plan.billingCycle];
-      const nextDueAt = reference.getTime() + cycleDays * MS_PER_DAY;
-      const cutoff = nextDueAt + gracePeriodDays * MS_PER_DAY;
-      if (now > cutoff) {
-        overdue.push({
-          clientId: client.id,
-          clientUserId: client.id,
-          clientName: client.user.profile?.username ?? '',
-          supervisorUserId: client.supervisorId,
-          supervisorName: client.supervisor?.user.profile?.username ?? null,
-        });
-      }
-    }
-
-    return overdue;
+    return overduePayments.map((p) => ({
+      clientId: p.client.id,
+      clientUserId: p.client.id,
+      clientName: p.client.user.profile?.username ?? '',
+      supervisorUserId: p.client.supervisorId,
+      supervisorName: p.client.supervisor?.user.profile?.username ?? null,
+    }));
   }
 
   async markAsDefaulter(clientId: string): Promise<void> {

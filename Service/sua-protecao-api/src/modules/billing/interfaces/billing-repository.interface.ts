@@ -8,17 +8,10 @@ export interface OverdueClientRow {
 
 export interface IBillingRepository {
   /**
-   * Retorna clientes ativos cujo "vencimento estimado" está atrasado em
-   * mais que `gracePeriodDays`.
-   *
-   * Heurística (vigora até existir tabela Payment dedicada):
-   *   reference = lastPaymentAt ?? joinedAt
-   *   nextDueAt = reference + cycleDays(plan.billingCycle)
-   *   atrasado se now > nextDueAt + gracePeriodDays
-   *
-   * cycleDays:
-   *   - monthly → 30
-   *   - annual  → 365
+   * Retorna clientes com pagamento em atraso. A consulta agora se baseia
+   * na tabela `payments` (status overdue OU pending com dueDate vencido +
+   * `gracePeriodDays`). Apenas clientes ainda marcados como `active` são
+   * retornados — quem já é `defaulter` não precisa ser reprocessado.
    */
   findOverdueClients(gracePeriodDays: number): Promise<OverdueClientRow[]>;
   markAsDefaulter(clientId: string): Promise<void>;

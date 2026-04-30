@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ClientStatus, RequestStatus, RequestType } from '@prisma/client';
+import {
+  ClientStatus,
+  PaymentStatus,
+  RequestStatus,
+  RequestType,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IDashboardRepository } from './interfaces/dashboard-repository.interface';
 import {
@@ -7,6 +12,7 @@ import {
   SupervisorDashboardDto,
   ClientDashboardDto,
   LossByPlanDto,
+  RevenueSummaryDto,
 } from './dto/dashboard-response.dto';
 
 const PERCENT_PRECISION = 2;
@@ -27,6 +33,7 @@ export class DashboardRepository implements IDashboardRepository {
 
   async getAdminDashboard(): Promise<AdminDashboardDto> {
     const yearStart = startOfCurrentYear();
+    const revenue = await this.computeRevenue();
 
     const [
       clients,
@@ -187,11 +194,59 @@ export class DashboardRepository implements IDashboardRepository {
       openRequests,
       pendingCoverage,
       monthlyRevenue: Number(monthlyRevenue.toFixed(2)),
+      revenue,
       clientsByPlan,
       topSupervisors,
       recentRequests,
       serviceUsage,
       lossByPlan,
+    };
+  }
+
+  /**
+   * Faturamento confirmado: soma de `payments` com status = confirmed nas
+   * janelas de tempo. `overdueOpen` traz a soma do que está vencido (status =
+   * overdue) — útil para o card de inadimplência financeira.
+   */
+  private async computeRevenue(): Promise<RevenueSummaryDto> {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const thisYearStart = new Date(now.getFullYear(), 0, 1);
+
+    const [thisMonth, lastMonth, thisYear, overdueOpen] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: {
+          status: PaymentStatus.confirmed,
+          paidAt: { gte: thisMonthStart },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          status: PaymentStatus.confirmed,
+          paidAt: { gte: lastMonthStart, lt: thisMonthStart },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          status: PaymentStatus.confirmed,
+          paidAt: { gte: thisYearStart },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: { status: PaymentStatus.overdue },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return {
+      thisMonth: Number(thisMonth._sum.amount ?? 0),
+      lastMonth: Number(lastMonth._sum.amount ?? 0),
+      thisYear: Number(thisYear._sum.amount ?? 0),
+      overdueOpen: Number(overdueOpen._sum.amount ?? 0),
     };
   }
 
