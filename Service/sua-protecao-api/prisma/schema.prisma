@@ -74,6 +74,21 @@ enum NotificationType {
   request_updated
   request_closed
   payment_overdue
+  payment_confirmed
+}
+
+enum PaymentMethod {
+  pix
+  boleto
+  credit_card
+}
+
+enum PaymentStatus {
+  pending
+  confirmed
+  overdue
+  refunded
+  cancelled
 }
 
 // ─── USER ─────────────────────────────────────────────────────────────────────
@@ -162,11 +177,14 @@ model Plan {
   color            String       @default("brand")
   popular          Boolean      @default(false)
   billingCycle     BillingCycle @default(monthly) @map("billing_cycle")
+  /// Percentual de desconto aplicado quando billingCycle = annual (0..100)
+  annualDiscount   Decimal      @default(0) @map("annual_discount") @db.Decimal(5, 2)
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
 
   clients      Client[]
   serviceRules PlanServiceRule[]
+  payments     Payment[]
 
   @@map("plans")
 }
@@ -221,6 +239,8 @@ model Client {
   servicesUsedThisMonth Int          @default(0) @map("services_used_this_month")
   joinedAt              DateTime     @default(now()) @map("joined_at")
   lastPaymentAt         DateTime?    @map("last_payment_at")
+  /// ID do cliente no gateway de pagamento (criado no primeiro pagamento)
+  asaasCustomerId       String?      @unique @map("asaas_customer_id")
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
 
@@ -237,6 +257,7 @@ model Client {
   supervisor Supervisor? @relation(fields: [supervisorId], references: [id])
   assets     ClientAsset[]
   requests   Request[]
+  payments   Payment[]
 
   @@index([supervisorId])
   @@index([planId])
@@ -287,6 +308,46 @@ model Request {
   @@index([serviceId])
   @@index([createdAt(sort: Desc)])
   @@map("requests")
+}
+
+// ─── PAYMENT ──────────────────────────────────────────────────────────────────
+
+model Payment {
+  id                String        @id @default(uuid())
+  clientId          String        @map("client_id")
+  planId            String        @map("plan_id")
+  asaasPaymentId    String        @unique @map("asaas_payment_id")
+  asaasCustomerId   String        @map("asaas_customer_id")
+  method            PaymentMethod
+  status            PaymentStatus @default(pending)
+  amount            Decimal       @db.Decimal(10, 2)
+  dueDate           DateTime      @map("due_date") @db.Date
+  paidAt            DateTime?     @map("paid_at")
+  installment       Int?
+  totalInstallments Int?          @map("total_installments")
+  /// Copia-e-cola do PIX (apenas method = pix)
+  pixCode           String?       @map("pix_code")
+  /// QR code base64 do PIX (apenas method = pix)
+  pixQrCode         String?       @map("pix_qr_code") @db.Text
+  /// URL do PDF do boleto (apenas method = boleto)
+  boletoUrl         String?       @map("boleto_url")
+  /// Linha digitável do boleto
+  boletoBarCode     String?       @map("boleto_bar_code")
+  /// URL hospedada de checkout do cartão (apenas method = credit_card)
+  invoiceUrl        String?       @map("invoice_url")
+  metadata          Json?
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([clientId])
+  @@index([planId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([clientId, createdAt(sort: Desc)])
+  @@map("payments")
 }
 
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
