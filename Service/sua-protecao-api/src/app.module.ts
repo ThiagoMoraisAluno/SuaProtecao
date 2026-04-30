@@ -14,6 +14,7 @@ import { RequestsModule } from './modules/requests/requests.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { BillingModule } from './modules/billing/billing.module';
     RequestsModule,
     DashboardModule,
     NotificationsModule,
+    PaymentsModule,
     BillingModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
